@@ -1,0 +1,161 @@
+<?php
+  include ("../../config.inc.php"); include ("../../lib.inc.php");
+  include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+  $pagetitle = "回覧板";
+  include ("../header.inc.php");
+
+  if ($login) {
+#    echo "<!--";
+    // エラーチェック
+    if (empty($s)) {
+      $MES[] = "案件が選択されていません";
+    } else {
+      $sql = "SELECT * FROM workflow WHERE (user_id='$login_id' or flow_ids~*'(^|,)$login_id(,|$)') AND seqno=$s";
+      $res = pg_query($conn,$sql);
+      $cnt = pg_num_rows($res);
+      if ($cnt==0) {
+        // 案件なし
+        $MES[] = "指定された案件は登録されていないか既に削除されています";
+      } else {
+        // 既読チェック処理
+        if (get_count("workflow_res","seqno=$s AND user_id='$login_id'")==0) {
+          $sql  = "INSERT INTO workflow_res (seqno,user_id,createstamp) VALUES ";
+          $sql .= "($s,'$login_id','now()')";
+        } else {
+          $sql  = "UPDATE workflow_res SET createstamp='now()' ";
+          $sql .= "WHERE seqno=$s AND user_id='$login_id'";
+        }
+        pg_query($conn,$sql);
+        // 案件の取得
+        $row = pg_fetch_array($res,0);
+        $seqno   = $row["seqno"];
+        $dirno   = strval($seqno); if (strlen($dirno)<8) $dirno = str_repeat("0",8-strlen($dirno)).$dirno;
+        $user_id = $row["user_id"];
+        $user_no  = $row["user_seqno"];
+
+        $flow_ids = $row["flow_ids"];
+        $flow_pat = $row["flow_pat"];
+
+        $subject = mb_convert_kana($row["subject"],"ak","EUC-JP");
+        if ($row["retry_sign"]=="t") {
+          $subject .= "(再)";
+        }
+
+        $body1 = mb_convert_kana($row["body1"],"ak","EUC-JP");
+        $body2 = mb_convert_kana($row["body2"],"ak","EUC-JP");
+        $body3 = mb_convert_kana($row["body3"],"ak","EUC-JP");
+        $body4 = mb_convert_kana($row["body4"],"ak","EUC-JP");
+
+        $result_sign = $row["result_sign"];
+        $resno       = $row["result_seqno"];
+
+        $create_datetime = date("Y年n月j日 H:i",datetime2timestamp($row["createstamp"]));
+      }
+    }
+
+    // ページ内容作成
+    if (sizeof($MES) > 0) {
+      // エラー表示
+      $txt.= "<FONT COLOR=#FF0000>";
+      for ($i=0;$i<sizeof($MES);$i++) {
+        $txt.= $MES[$i]."<br>\n";
+      }
+      $txt.= "</FONT>";
+    } else {
+      $flow_id_arr = preg_split(",",$flow_ids);
+      $flow_id_cnt = sizeof($flow_id_arr);
+
+      $txt.= "件名:".$subject."<BR>";
+
+      $txt.= "<hr size=\"0\">";
+      if ($flow_id_cnt>0) {
+        $c = 0;
+        for($i=0;$i<$flow_id_cnt;$i++){
+          $c++;
+
+          $note = "";
+
+          $flow_id = $flow_id_arr[$i];
+
+          $sql_res = "SELECT * FROM workflow_ret WHERE refno=$seqno AND user_id='$flow_id'";
+          $res_res = pg_query($conn,$sql_res);
+          $cnt_res = pg_num_rows($res_res);
+          if ($cnt_res==0) {
+            $note = "";
+            $stamp = null;
+            $result = "f";
+            $recognize = "";
+          } else {
+            $row_res = pg_fetch_array($res_res,0);
+            $note = $row_res["note"];
+            $stamp = $row_res["createstamp"];
+            $result = $row_res["result_sign"];
+            $recognize = $row_res["recognize_sign"];
+          }
+
+#          $txt.= $c.".";
+
+          if ($flow_id == $login_id) {
+            // 自身
+            $txt.= "<A HREF=\"../mem/detail.phtml?ms=$ms&sn=$sn&id=".$flow_id."\">";
+            $txt.= get_first("users","name_ryaku","id='$flow_id'","不明");
+            $txt.= "</A>";
+            $txt.= ":";
+
+            $cnt_chk = get_count("workflow_ret","refno=$seqno AND seqno=$c");
+            if ($c>1) $cnt_before = get_count("workflow_ret","refno=$seqno AND seqno=$c-1");
+            if ($result_sign=="" && $cnt_chk==0 && ($c==1 || ($c>1 && $cnt_before>0))) {
+              $txt.= "<A HREF=\"./result/?ms=$ms&sn=$sn&p=$p&type=$type&s=".$seqno."&r=$c&func=t\"><FONT COLOR=#FF0000>決裁</A>";
+            } else {
+              if ($recognize=="t") {
+                $txt.= "<FONT COLOR=#FF0000>承認</FONT>";
+              } elseif ($recognize=="f") {
+                $txt.= "<FONT COLOR=#000000>否認</FONT>";
+              } else {
+                $txt.= "<FONT COLOR=#777755>未承認</FONT>";
+              }
+              $txt.= "<A HREF=\"./result/?ms=$ms&sn=$sn&p=$p&type=$type&s=".$seqno."&r=$c\">&emojinote;</A>";
+            }
+
+            // コメント
+#            if ($result=="f") {
+            if ($result_sign=="" && $cnt_chk==0 && ($c==1 || ($c>1 && $cnt_before>0))) {
+              if ($c==1 || get_count("workflow_ret","recognize_sign","refno=$seqno AND seqno<$c-1")>0) {
+#                $txt.= "<TEXTAREA NAME=\"note\" COLS=26 ROWS=3 STYLE=\"width:204px\">$note</TEXTAREA>";
+              }
+            } else {
+#              $txt.= $note;
+            }
+#            $txt.= "<BR>\n";
+
+          } else {
+            // 以外
+            $txt.= "<A HREF=\"../mem/detail.phtml?ms=$ms&sn=$sn&id=".$flow_id."\">";
+            $txt.= get_first("users","name_ryaku","id='$flow_id'","不明");
+            $txt.= "</A>";
+            $txt.= ":";
+#            $txt.= "<TD ALIGN=CENTER NOWRAP VALIGN=TOP>"; // 回答日時
+
+            if ($cnt_res==0) {
+              if ($row["result_sign"]=="") {
+                $txt.= "<FONT COLOR=#777755>承認待ち</FONT>";
+              } else {
+                $txt.= "-";
+              }
+            } else {
+              if ($row_res["recognize_sign"]=="t") {
+                $txt.= "<FONT COLOR=#FF0000>承認</FONT>";
+              } else {
+                $txt.= "<FONT COLOR=#000000>否認</FONT>";
+              }
+              $txt.= "<A HREF=\"./result/?ms=$ms&sn=$sn&p=$p&type=$type&s=".$seqno."&r=$c\">&emojinote;</A>";
+            }
+          }
+          $txt.= "<BR>\n";
+        }
+      }
+    }
+  }
+  include ("../footer.inc.php");
+?>

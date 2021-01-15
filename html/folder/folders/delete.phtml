@@ -1,0 +1,82 @@
+<?php
+	include "../../config.inc.php"; include "../../lib.inc.php";
+
+	$linktext = "<a href=\"../../\">トップページ</A> &gt; ";
+	$linktext.= "<a href=\"../\">Webフォルダ</A> &gt; ";
+	$linktext.= "<font color=\"#ffff00\">フォルダの削除</font>";
+
+	include "../../login_check.inc.php";
+
+	if ($login && sizeof($MES)==0) {
+		// パラメーターの受け取り
+		$path = $_REQUEST["path"];
+
+		#// 操作権限のチェック
+		#if (sizeof($MES)==0 && $login && !empty($login_id) && $upload_sign!='t') {
+		#  $MES[] = "ご利用中のアカウントではフォルダの削除はできません";
+		#}
+
+		// コード変換
+		$path = stripslashes($path);
+		$patharr = preg_split("/",$path);
+
+		// エラーチェック
+		if (sizeof($MES)==0) {
+			$deletepath = $folderpath.$path;
+			if (!file_exists($deletepath)) {
+				$DMES[] = "指定されたフォルダが見つかりません。";
+			} else {
+				$fp = fopen($deletepath,"r");
+				if ($fp == false) {
+					$DMES[] = "指定されたフォルダを開くことができませんでした。";
+				} else {
+					fclose($fp);
+				}
+			}
+		}
+
+		rmdir($deletepath);
+		clearstatcache();
+		if (file_exists($deletepath)) {
+			$DMES[] = "フォルダ[$path]の削除に失敗しました<BR>ファイルが残っているか削除不可にされています";
+		}
+
+		// 関連データ削除
+		if (sizeof($DMES)==0) {
+			// DB確認
+			$sql = "SELECT * FROM folders WHERE path='".db_textsafe($path)."'";
+			$res = pg_query($conn,$sql);
+			$cnt = pg_num_rows($res);
+			if ($cnt>0) {
+				$row = pg_fetch_array($res,0);
+				$seqno = $row["seqno"];
+				$folderno = $row["seqno"];
+				if (strlen($folderno)<6) $folderno = str_repeat("0",6-strlen($folderno)).$folderno;
+
+				// DBからフォルダ情報の削除
+				$sql = "DELETE FROM folders WHERE seqno=".$seqno;
+				$res = pg_query($conn,$sql);
+			}
+		}
+
+		if (sizeof($DMES)==0) {
+			// 正常終了
+			$returl = "../";
+			header("Location: ".$returl);
+		} else {
+			// エラー時
+			include "../../header.inc.php";
+
+			$pagetext .= "<BR><CENTER>\n";
+			$pagetext .= "<FONT COLOR=#FF0000>\n";
+			while (list($key,$val)=each($DMES)) {
+				$pagetext .= $val."<BR>\n";
+			}
+			$pagetext .= "</FONT>\n";
+			$pagetext .= "</CENTER>";
+
+			include "../../detail.inc.php";
+			include "../../footer.inc.php";
+		}
+	}
+?>

@@ -1,0 +1,194 @@
+<?php
+include "../../config.inc.php"; include "../../lib.inc.php";
+
+$linktext  = "<A HREF=\"../../\" CLASS=\"BAR\">トップページ</A> &gt; ";
+$linktext .= "<A HREF=\"../\" CLASS=\"BAR\">Webフォルダ</A> &gt; ";
+$linktext .= "<FONT COLOR=#FFFF00>フォルダ作成</FONT> ";
+
+include "../../login_check.inc.php";
+
+if ($login && sizeof($MES)==0) {
+	// 前処理
+	$addpath = view_textsafe($_REQUEST["addpath"]);
+	$folder  = view_textsafe($_REQUEST["folder"]);
+	$comment = view_textsafe($_REQUEST["comment"]);
+	
+	// フォルダ名チェック
+	if ($folder=="") {
+		$DMES[] = "作成フォルダ名が入力されていません";
+	} else {
+		if(strlen($folder)>40) { // 最大40文字
+		$DMES[] = "作成フォルダ名が長すぎます";
+		} else {
+			if ($folder=="trash") {
+				$DMES[] = "指定されたフォルダ名は使用できません";
+			} else {
+				if ($folder=="/" or $folder=="\\") {
+					$DMES[] = "フォルダ名に使用できない文字が入っています";
+				} else {
+					if ($folder=="." or $folder=="..") {
+						$DMES[] = "フォルダ名に使用できない文字が入っています";
+					} else {
+						#              if (preg_match("\/",$folder) or preg_match("[\b]",$folder) or preg_match("\.",$folder)) {
+						if (preg_match("\/",$folder) or preg_match("\.",$folder)) {
+							$DMES[] = "フォルダ名に使用できない文字が含まれています";
+						} else {
+							if (strpos($folder," ")>0 || strpos($folder,"　")>0) {
+								$DMES[] = "フォルダ名に空白スペースを含むことはできません";
+							} else {
+								// 親フォルダの情報獲得
+								$sql = "SELECT * FROM folders WHERE path='".$addpath."';";
+								$res = pg_query($conn, $sql);
+								$cnt = pg_num_rows($res);
+								if ($cnt>0) {
+									$row = pg_fetch_array($res,0);
+									$view_user_ids  = $row["view_user_ids"];
+									$view_group_ids = $row["view_group_ids"];
+								}
+								
+								$makefolder = $folderpath.$addpath;
+								if (substr($makefolder,-1,1) != "/") $makefolder .= "/";
+								$makefolder .= $folder;
+								
+								if (file_exists($makefolder)) {
+									$DMES[] = "作成フォルダと同名のファイルまたはフォルダが既に存在しています";
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	if (sizeof($DMES)==0) {
+		if ($folder != sjis2euc(euc2sjis($folder))) {
+			$DMES[] = "フォルダ名に利用できない漢字が使用されています";
+		}
+	}
+	
+	// コメントチェック
+	if (strlen($comment)>8192) {
+		$DMES[] = "コメントが長すぎます(8192文字まで)";
+		$comment = mb_strcut(0,8192);
+	}
+	
+	// DBへ書き込み
+	if (sizeof($DMES)==0) {
+		// 既存レコードチェック
+		$makefolder_db = $addpath;
+		if (substr($makefolder_db,-1,1) != "/") $makefolder_db .= "/";
+		$makefolder_db .= $folder;
+		
+		$makefolder_db = db_textsafe($makefolder_db);
+		$comment_db = db_textsafe($comment);
+		
+		$sql = "SELECT * FROM folders WHERE path='".$makefolder_db."';";
+		$res = pg_query($conn, $sql);
+		$cnt = pg_num_rows($res);
+		if ($cnt == 0) { // 新規
+		$sql = "SELECT * FROM folders ORDER BY seqno desc;";
+		$res = pg_query($conn, $sql);
+		$cnt = pg_num_rows($res);
+		
+		if ($cnt==0) {
+			$seqno = 1;
+		} else {
+			$row = pg_fetch_array($res, 0);
+			$seqno = $row["seqno"] + 1;
+		}
+		
+		$sql  = "INSERT INTO folders (";
+		$sql .= "seqno,user_id,path,";
+		if (!empty($view_user_ids) && trim($view_user_ids)!="") {
+			$sql .= "view_user_ids,";
+		}
+		if (!empty($view_group_ids) && trim($view_group_ids)!="") {
+			$sql .= "view_group_ids,";
+		}
+		$sql .= "comment,createstamp,updatestamp)";
+		$sql .= " VALUES (";
+		$sql .= $seqno.",";
+		$sql .= "'".$login_id."',";
+		$sql .= "'".$makefolder_db."',";
+		if (!empty($view_user_ids) && trim($view_user_ids)!="") {
+			$sql .= "'".$view_user_ids."',";
+		}
+		if (!empty($view_group_ids) && trim($view_group_ids)!="") {
+			$sql .= "'".$view_group_ids."',";
+		}
+		$sql .= "'".$comment_db."',";
+		$sql .= "'now',";
+		$sql .= "'now'";
+		$sql .= ")";
+		$res = pg_query($conn,$sql);
+		if ($res==false) {
+			$DMES[] = $sql."フォルダ情報の登録に失敗しました";
+		}
+		$folderno = $seqno;
+		} else {
+			$row = pg_fetch_array($res,0);
+			$folderno = $row["seqno"];
+			
+			$sql  = "UPDATE folders SET ";
+			$sql .= "user_id='".$login_id."',";
+			if (!empty($view_user_ids) && trim($view_user_ids)!="") {
+				$sql .= "view_user_ids='".$view_user_ids."',";
+			}
+			if (!empty($view_group_ids) && trim($view_group_ids)!="") {
+				$sql .= "view_group_ids='".$view_group_ids."',";
+			}
+			$sql .= "comment='".$comment_db."',";
+			$sql .= "createstamp='now()',";
+			$sql .= "updatestamp='now()'";
+			$sql .= " WHERE seqno=$folderno";
+			$res = pg_query($conn, $sql);
+		}
+	}
+	
+	if (sizeof($DMES)==0) {
+		//フォルダ作成
+		if (!file_exists($makefolder)) {
+			mkdir ($makefolder, 0777);
+			clearstatcache();
+			if (!file_exists($makefolder)) {
+				$DMES[] = "フォルダの作成に失敗したか（管理者設定）、既に同名のフォルダが作成されています";
+			}
+		}
+	}
+	// サムネイルフォルダ生成
+	if (sizeof($DMES)==0) {
+		if (strlen($folderno)<6) $folderno = str_repeat("0",6-strlen($folderno)).$folderno;
+		if (!file_exists($thumbnailpath."/".$folderno)) {
+			$ret = exec('/bin/mkdir -p "'.$thumbnailpath."/".$folderno.'"',$res);
+		}
+		$ret = exec('/bin/chmod \"'.$thumbnailpath."/".$folderno.'" 0755',$res);
+		
+		if (!file_exists($thumbnailpath."/".$folderno)) {
+			#$DMES[] = "サムネイル用フォルダの作成に失敗しました";
+		}
+	}
+	
+	if (sizeof($DMES)>0) {
+		// 入力エラー時
+		include "../../header.inc.php";
+		
+		$pagetext .= "<BR><BR>";
+		$pagetext .= "<CENTER>";
+		$pagetext .= "<FONT COLOR=#FF0000>";
+		while (list($key,$val)=each($DMES)) {
+			$pagetext .= $val."<BR>";
+		}
+		$pagetext .= "<BR><FORM>\n";
+		$pagetext .= "</FORM>\n";
+		$pagetext .= "</center>\n";
+		
+		include "../../detail.inc.php";
+		include "../../footer.inc.php";
+		
+	} else {
+		// 正常時
+		$returl = "../";
+		Header("Location: ".$returl);
+	}
+}
+?>

@@ -1,0 +1,142 @@
+<?php
+	include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+	include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+	$pagetitle = "住所録 ログ情報";
+	include ("../../header.inc.php");
+
+	if ($n=="") {
+		$n = 0;
+	}
+
+	if ($s=="") {
+		$MES[] = "操作が正しくありません";
+	} else {
+		$sql_log = "SELECT * FROM address_log WHERE address_seqno=".$s." ORDER BY seqno DESC";
+		$res_log = pg_query($conn,$sql_log);
+		$cnt_log = pg_num_rows($res_log);
+		if ($cnt_log==0) {
+			$MES[] = "ログ情報なし";
+		}
+	}
+	if (sizeof($MES)>0) {
+		// エラーメッセージ出力
+		$txt.= "<BR>";
+		$txt.= "<DIV ALIGN=CENTER>";
+		$txt.= "<FONT COLOR=#FF0000>";
+		while (list($key,$val)=each($MES)) {
+			$txt.= $val."<BR>";
+		}
+		$txt.= "</FONT>";
+		$txt.= "</DIV>";
+		$txt.= "<BR>";
+
+		$txt.= "<FORM ACTION=\"../\" METHOD=POST>";
+		$txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=\"$ms\">";
+		$txt.= "<INPUT TYPE=HIDDEN NAME=s VALUE=\"$s\">";
+		$txt.= "<DIV ALIGN=CENTER><INPUT TYPE=SUBMIT VALUE=\"戻る\"></DIV>";
+		$txt.= "</FORM>";
+		$txt.= "<BR>";
+	} else {
+		// 正常処理
+		$row_log = pg_fetch_array($res_log,$n);
+		if ($row_log["type"]=="memo") {
+			$logtype = "伝言";
+		} elseif ($row_log["type"]=="mail") {
+			$logtype = "メール";
+		} elseif ($row_log["type"]=="schdule") {
+			$logtype = "予定表";
+		} elseif ($row_log["type"]=="todo") {
+			$logtype = "備忘録";
+		} elseif ($row_log["type"]=="circle") {
+			$logtype = "回覧板";
+		} else {
+			$logtype = "メモ";
+		}
+
+		$txt.= "ログの種類:".$logtype."<BR>";
+
+		$notes = preg_split("\r\n",$row_log["note"]);
+		$l = 0;
+		$text_length = 0;
+
+		while (list($key,$text)=each($notes)) {
+			$text = str_replace("\n","<BR>",$text);
+			$text = str_replace("”", '"', $text);
+			$text = str_replace("’", "'", $text);
+			$text = str_replace("¥", "&yen;", $text);
+			$text = eregi_replace("<","&lt;",$text);
+			$text = eregi_replace(">","&gt;",$text);
+			$text = eregi_replace("＜","&lt;",$text);
+			$text = eregi_replace("＞","&gt;",$text);
+			$text = eregi_replace("[ ]","&nbsp;",$text);
+			$text = mb_convert_kana($text,"ak","EUC-JP");
+
+			// URLをリンク化
+			$p = 0;
+			$text2 = "";
+			while (true) {
+				if (mberegi("s?https?://[-_.!~*'()a-zA-Z0-9;/?:@&=+$%#]+",substr($text,$p),$reg)>0) {
+					// ターゲットを含んだ行があった
+					$p2 = strpos(" ".substr($text,$p),$reg[0]);
+					$text2 .= substr($text,$p,$p2-1);
+					$text2 .= "<A HREF=\"".$reg[0]."\" style=\"color:#0000AA\" target=\"_blank\">".$reg[0]."</A>";
+					$p = $p + $p2 + strlen($reg[0])-1;
+				} else {
+					// ターゲットを含んだ行はもう無い
+					$text2 .= substr($text,$p);
+					$text = $text2;
+					break;
+				}
+			}
+
+			// メールアドレスをリンク化
+			$p = 0;
+			$text2 = "";
+			while (true) {
+				if (mberegi("[-_.a-zA-Z0-9]+@[-_.a-zA-Z0-9]+\.[-_.a-zA-Z]+",substr($text,$p),$reg)>0) {
+					// ターゲットを含んだ行があった
+					$p2 = strpos(" ".substr($text,$p),$reg[0]);
+					$text2 .= substr($text,$p,$p2-1);
+					$text2 .= "<A HREF=\"mailto:".$reg[0]."\" style=\"color:#AA0000\">".$reg[0]."</A>";
+					$p = $p + $p2 + strlen($reg[0])-1;
+				} else {
+					// ターゲットを含んだ行はもう無い
+					$text2 .= substr($text,$p);
+					$text = $text2;
+					break;
+				}
+			}
+			$txt.= $text."<BR>";
+		}
+		$txt.= "<DIV ALIGN=RIGHT>";
+		$txt.= date("Y年m月d日 H:i",datetime2timestamp($row_log["createstamp"]));
+
+		if ($row_log["user_id"]!="") {
+			$sql_user = "select name_ryaku,name from users where id='".$row_log["user_id"]."'";
+			$res_user = pg_query($conn,$sql_user);
+
+			if (pg_num_rows($res_user)>0){
+				$row_user = pg_fetch_array($res_user,0);
+				$txt.= "(";
+				$name_ryaku = $row_user["name_ryaku"];
+				if ($row_user["name_ryaku"]=="") {
+					$name_ryaku = $row_user["name"];
+				}
+				$txt.= $name_ryaku;
+				$txt.= ")";
+			}
+		}
+		$txt.= "</DIV>";
+
+		// ページ替えリンク
+		if ($n>0 || $cnt_log-1>$n) {
+			$txt.= "<hr size=\"0\">";
+			$txt.= "<center>";
+			if ($n>0)          { $txt.= "<A HREF=\"./log.phtml$serial&s=$s&n=".($n-1)."\">前ページ</A>&nbsp;"; }
+			if ($cnt_log-1>$n) { $txt.= "<A HREF=\"./log.phtml$serial&s=$s&n=".($n+1)."\">次ページ</A>"; }
+			$txt.= "</center>";
+		}
+	}
+	include ("../../footer.inc.php");
+?>

@@ -1,0 +1,51 @@
+<?php
+	include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+	include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+	$pagetitle = "回覧作成";
+	include ("../../header.inc.php");
+
+	if ($login) {
+		// 文字整形
+		if (!empty($_REQUEST["subject"])) $subject = textsafe(sjis2euc(remove_emoji($_REQUEST["subject"])));
+		if (!empty($_REQUEST["body"]))    $body    = textsafe(sjis2euc(remove_emoji($_REQUEST["body"])));
+
+		// エラー判定
+		if (sizeof($MES)>0) {
+			// エラー
+			$txt.= "<FONT color=#FF0000>";
+			while (list($key,$val)=each($MES)) {
+				$txt.= $val."<BR>";
+			}
+			$txt.= "</FONT>\n";
+		} else {
+			// 正常処理
+			$txt.= "<FORM ACTION=\"./share.phtml\" METHOD=POST>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+
+			if ($mode == "reply") { // 返信時
+				if (!empty($s) && is_numeric($s)) {
+					$w_body = get_first("mail","body","seqno=$s","");
+					$w_bodys = preg_split("\n\r",mb_strcut($w_body,0,512));
+					while(list($seq,$text)=each($w_bodys)) {
+						$body = "&gt; ".$text."\n";
+					}
+				}
+			}
+
+			$txt.= "表題:<BR>";
+			$txt.= "<INPUT TYPE=TEXT NAME=\"subject\" VALUE=\"".$subject."\" ";
+			$txt.= inputmode("hiragana");
+			$txt.= ">";
+			$txt.= "内容:<BR>";
+			$txt.= "<TEXTAREA NAME=\"body\" ROWS=3 ";
+			$txt.= "&modehiragana;";
+			$txt.= ">".$body."</TEXTAREA>";
+			$txt.= "<CENTER>";
+			$txt.= "<INPUT TYPE=SUBMIT VALUE=\"次へ\">";
+			$txt.= "</CENTER>";
+			$txt.= "</FORM>\n";
+		}
+	}
+	include ("../../footer.inc.php");
+?>

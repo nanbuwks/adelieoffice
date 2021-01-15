@@ -1,0 +1,92 @@
+<?php
+  /* ヘッダ読み込み */
+  include "../../config.inc.php";
+  include "../../lib.inc.php";
+
+  // 操作権限のチェック
+  if (sizeof($MES)==0 && $login && !empty($login_id) && $download_sign!='t') {
+    $MES[] = "ご利用中のアカウントではファイルのダウンロードはできません";
+  }
+
+  // パラメーターセット
+  if (!empty($_GET["path"])) {
+    $path = stripslashes(urldecode($_GET["path"]));
+  }
+  if (!empty($_POST["path"])) {
+    $path = urldecode($_POST["path"]);
+  }
+  if (!empty($_GET["name"])) {
+    $name = stripslashes(urldecode($_GET["name"]));
+  }
+  if (!empty($_POST["name"])) {
+    $name = urldecode($_POST["name"]);
+  }
+
+  // エラーチェック
+  if (sizeof($MES)==0) {
+    $dirname = $folderpath.$path;
+
+    if ($mode != "crypt") {
+      $filename_org = urldecode($name);
+      $filename     = $filename_org;
+    } else {
+      $filename_org = ".".urldecode($name);
+      $filename     = urldecode($name);
+    }
+
+    $names = preg_preg_split("/\./",$name);
+    if (sizeof($names)<=1) {
+      $fileext = "";
+    } else {
+      $fileext = $names[sizeof($names)-1];
+    }
+
+    // ファイルの探索
+    if (trim($filename)=="") {
+      $MES[] = "ファイルが指定されていません。";
+      $MES[] = $filename;
+    } else {
+      if (!file_exists($dirname."/".$filename)) {
+        $MES[] = "指定されたファイルが見つかりません。";
+        $MES[] = $dirname."/".$filename;
+        $MES[] = $path;
+        $MES[] = $name;
+        
+      } else {
+        $fp = fopen($dirname."/".$filename_org,"r");
+        if ($fp == false) {
+          $MES[] = "指定されたファイルを開くことができませんでした。";
+        }
+      }
+    }
+  }
+
+  if (sizeof($MES)>0) {
+    // エラー時
+#    print "<CENTER><FONT COLOR=#FF0000>";
+#    // エラーメッセージ出力
+#    while (list($key,$val)=each($MES)) {
+#      print $val."<BR>\n";
+#    }
+#    print "</FONT>\n";
+#    print "<BR><FORM><INPUT TYPE=BUTTON ONCLICK=\"history.back()\" VALUE=\"戻る\"></FORM><CENTER>\n";
+    header("HTTP/1.1 404 Not Found");
+  } else {
+    // 通常
+    /* Download */
+    $user_agent = getenv("HTTP_USER_AGENT");
+
+    header("Content-Type: application/download"); 
+    header("Content-Description: Generated Data");
+    header("Content-Transfer-Encoding: binary"); 
+
+    // 通常時
+    if (preg_match("/MSIE ([0-9])/i",$user_agent)) {
+      header("Content-Disposition: attachment; filename=\"".euc2sjis($filename)."\""); 
+    } else {
+      header("Content-Disposition: attachment; filename=\"download.".$fileext."\""); 
+    }
+    header("Content-Size: ".filesize($dirname."/".$filename)); 
+    $fp = fopen($dirname."/".$filename,"r"); fpassthru($fp);
+  }
+?>

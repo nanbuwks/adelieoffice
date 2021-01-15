@@ -1,0 +1,330 @@
+<?php
+	include ("../../config.inc.php"); include ("../../lib.inc.php");
+	include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+	if ($y=="" or $y==0 or !is_numeric($y) or $m=="" or $m==0 or !is_numeric($m) or $d=="" or $d==0 or !is_numeric($d)) {
+		$tempdate = getdate();
+		$y = $tempdate["year"];
+		$m = $tempdate["mon"];
+		$d = $tempdate["mday"];
+	}
+
+	## ヘッダ表示
+	$pagetitle = "予定表 ".$y."/".$m."/".$d."(".$wname[date("w",$stamp)].")〜";
+	include ("../header.inc.php");
+
+	if ($login) {
+		## 変数設定
+		$uid = $login_id;
+
+		## グループ情報の取得
+		$arr_group = array();
+		$sql = "SELECT name,id,viewsign FROM groups ORDER BY seqno";
+		$res = pg_query($conn,$sql);
+		$cnt = pg_num_rows($res);
+		if ($cnt>0) {
+			for ($i=0;$i<$cnt;$i++) {
+				$row = pg_fetch_array($res,$i);
+				if ($row["viewsign"]=="t") {
+					$arr_group[$row["id"]] = $row["name"];
+					if (empty($grp) && $cnt_user) { $grp = $row["id"]; }
+				} else {
+					$sql_chk = "SELECT user_id FROM users_entry";
+					$sql_chk.= " WHERE user_id='".$login_id."' AND group_id='".$row["id"]."' LIMIT 1";
+					$res_chk = pg_query($conn,$sql_chk);
+					$cnt_chk = pg_num_rows($res_chk);
+					if ($cnt_chk>0) {
+						$arr_group[$row["id"]] = $row["name"];
+						if (empty($grp) && $cnt_user) { $grp = $row["id"]; }
+					}
+					pg_free_result($res_chk);
+				}
+			}
+		}
+		pg_free_result($res);
+
+		## ユーザー情報の取得
+		$arr_user = array();
+		$sql = "SELECT id,name_ryaku FROM users";
+		$sql.= " WHERE id='".$login_id."' LIMIT 1";
+		$res = pg_query($conn,$sql);
+		$cnt = pg_num_rows($res);
+		if ($cnt>0) {
+			for ($i=0;$i<$cnt;$i++) {
+				$row = pg_fetch_array($res,$i,PGSQL_NUM);
+				if (!in_array($row,$arr_user)) {
+					$arr_user[$row[0]] = $row[1];
+				}
+			}
+		}
+		pg_free_result($res);
+		$sql = "SELECT id,name_ryaku FROM users";
+		$sql.= " WHERE secretary_id='".$login_id."'";
+		$sql.= " ORDER BY seqno";
+		$res = pg_query($conn,$sql);
+		$cnt = pg_num_rows($res);
+		if ($cnt>0) {
+			for ($i=0;$i<$cnt;$i++) {
+				$row = pg_fetch_array($res,$i,PGSQL_NUM);
+				if (!in_array($row,$arr_user)) {
+					$arr_user[$row[0]] = $row[1];
+				}
+			}
+		}
+		pg_free_result($res);
+		$sql = "SELECT id,name_ryaku FROM users";
+		$sql.= " WHERE righthandman_ids ~* '(^|,)$login_id(,|$)'";
+		$sql.= " ORDER BY seqno";
+		$res = pg_query($conn,$sql);
+		$cnt = pg_num_rows($res);
+		if ($cnt>0) {
+			for ($i=0;$i<$cnt;$i++) {
+				$row = pg_fetch_array($res,$i,PGSQL_NUM);
+				if (!in_array($row,$arr_user)) {
+					$arr_user[$row[0]] = $row[1];
+				}
+			}
+		}
+		pg_free_result($res);
+		reset($arr_group);
+		while (list($key,$val)=each($arr_group)) {
+			$sql = "SELECT id,name_ryaku FROM users";
+			$sql.= " RIGHT JOIN (SELECT * FROM users_entry WHERE group_id='".$key."') as entry ON users.id=entry.user_id";
+			$sql.= " ORDER BY seqno";
+			$res = pg_query($conn,$sql);
+			$cnt = pg_num_rows($res);
+			if ($cnt>0) {
+				for ($i=0;$i<$cnt;$i++) {
+					$row = pg_fetch_array($res,$i,PGSQL_NUM);
+					if (!in_array($row,$arr_user)) {
+						$arr_user[$row[0]] = $row[1];
+					}
+				}
+			}
+			pg_free_result($res);
+		}
+
+		## 表示可能ユーザーチェック
+		if (isset($_GET["uid"])) {
+			$tempuid = textsafe(sjis2euc($_GET["uid"]));
+			while (list($key,$val)=each($arr_user)) {
+				if ($tempuid==$key) {
+					$uid = textsafe(sjis2euc($_GET["uid"]));
+					break;
+				}
+			}
+		}
+
+		$txt.= "予定表&emojitrain;";
+		$txt.="<hr size=\"0\">";
+
+		if (!empty($y) || !empty($m) || !empty($d)){
+			if (checkdate($m,$d,$y)==false) {
+				$MES[] = "表示日の指定が正しくありません";
+			}
+		}
+
+		$stamp = mktime(0, 0, 0, $m, $d, $y);
+
+		// エラーチェック
+		if (trim($login_id) == "") {
+			$MES[] = "ユーザーＩＤが正しくありません";
+		} else {
+			$sql = "select * from users where id='".$login_id."'";
+			$res = pg_query($conn, $sql);
+
+			if (pg_num_rows($res)<1) {
+				$MES[] = "ユーザーＩＤが正しくありません";
+			} else {
+				$row = pg_fetch_array($res,0);
+
+				$sql_secret = "select * from users where secretary_id='".$login_id."'";
+				$res_secret = pg_query($conn, $sql_secret);
+				$cnt_secret = pg_num_rows($res_secret);
+				if ($cnt_secret>0) {
+					for ($i=0;$i<$cnt_secret;$i++) {
+						$row_secret = pg_fetch_array($res_secret,$i);
+						$master_ids[] = $row_secret["id"];
+						if ($master_checkid != "") { $master_checkid .= ","; }
+						$master_checkid .= $row_secret["id"];
+					}
+				}
+			}
+		}
+
+		// カラー、日付、祭日のセット
+		$startstamp = $stamp;
+		$endstamp   = $stamp+86400*6;
+
+		// 日付表示
+		$txt.= "";
+		if ($y!=date("Y")) {
+			$txt.= $y."年";
+		}
+		$txt.= $m."月".$d."日(".$wname[date("w",$startstamp)].")〜<BR>";
+
+		// ユーザー表示
+		$txt.= "<DIV ALIGN=RIGHT>";
+		$txt.= get_first("users","name","id='$uid'","不明");
+		$txt.= "";
+		$txt.= "<A HREF=\"./change.phtml$serial&uid=$uid&y=$y&m=$m&d=$d\">";
+		$txt.= "⇒変更";
+		$txt.= "</A></DIV>";
+
+		$righthandman_ids = get_first("users","righthandman_ids","id='".$uid."'",""); // 右腕情報の取得
+
+		$txt.= "<hr size=\"0\">";
+
+		$txt.= "<CENTER>";
+			$txt.= "&lt;<A HREF=\"./$serial&uid=".$uid."&y=".date("Y",$startstamp-86400*7)."&m=".date("n",$startstamp-86400*7)."&d=".date("j",$startstamp-86400*7)."\">前週</A>";
+			$txt.= " <A HREF=\"./$serial&uid=$uid&&y=".date("Y",$startstamp+86400*7)."&m=".date("n",$startstamp+86400*7)."&d=".date("j",$startstamp+86400*7)."\">次週</A>&gt;";
+		$txt.= "</CENTER>";
+
+		$backyear = date("Y",$startstamp);
+
+		for($n=0;$n<7;$n++){
+
+			$dispstamp = $startstamp+($n*86400);
+			$dispdate = date("Y-m-d",$dispstamp);
+
+			// 祭日チェック
+			$sql_holiday = "select * from holiday WHERE holiday='".date("Y-m-d",$dispstamp)."'";;
+			$res_holiday = pg_query($conn, $sql_holiday);
+			$cnt_holiday = pg_num_rows($res_holiday);
+			if ($cnt_holiday==0) {
+				$forecolor = $wcolor_title[date("w",$dispstamp)];
+			} else {
+				$forecolor = $wcolor_title[7];
+			}
+			$txt.= "<FONT COLOR=".$forecolor.">";
+			if (date("Y",$dispstamp) != $backyear) $txt.= date("Y",$dispstamp)."/";
+			$txt.= date("n",$dispstamp)."/";
+			$txt.= date("j",$dispstamp);
+			$txt.= "(".$wname[date("w",$dispstamp)].")";
+			$txt.= "</FONT>";
+
+			$txt.= " ";
+				$txt.= "<a href=\"./add/$serial&uid=$uid&ey=".date("Y",$dispstamp)."&em=".date("n",$dispstamp)."&ed=".date("j",$dispstamp)."\">&nemojipencil;</a>";
+			$txt.= "<br />";
+
+			$sql = "SELECT seqno,user_id,create_user_id,datefrom,dateto,timefrom,timeto,note,viewsign,opensign,sharelist FROM schedules ";
+			if ($uid == $login_id){
+				$sql .= "WHERE user_id='".$uid."'";
+			} else {
+				if ($master_checkid != "" && preg_match("(^|,)".$uid."(,|$)",$master_checkid)) {
+					$sql .= "WHERE user_id='".$uid."'";
+				} else {
+					if (($righthandman_ids != "" && preg_match("(^|,)".$login_id."(,|$)",$righthandman_ids))) {
+						$sql .= "WHERE user_id='".$uid."' ";
+					} else {
+						$sql .= "WHERE (user_id='".$uid."' and opensign='t') ";
+					}
+				}
+			}
+			$sql .= " AND ";
+			$sql .= "((datefrom='".$dispdate."' or dateto='".$dispdate."') or ";
+			$sql .= "(datefrom<='".$dispdate."' and dateto>='".$dispdate."')) ";
+
+			$sql .= "ORDER BY datefrom,coalesce(timefrom,'1970-04-14 00:00:00'),dateto,coalesce(timeto,'1970-04-14 00:00:00')";
+			$res = pg_query($conn,$sql);
+			$cnt = pg_num_rows($res);
+			if ($cnt==0) {
+			} else {
+				for($i=0;$i<$cnt;$i++){
+					$row = pg_fetch_array($res,$i);
+
+					if ($row["datefrom"]==$dispdate and $row["timefrom"]!="") {
+						$t_f = datetime2timestamp($row["timefrom"]);
+						$s_f = date("H:i",$t_f);
+					} elseif($row["datefrom"]!=$dispdate) {
+						$t_f = datetime2timestamp("1970/04/14 00:00:00");
+						$s_f = date("m/d",date2timestamp($row["datefrom"]));
+						if ( $row["timefrom"]!="") {
+							$s_f .= " ".date("H:i",datetime2timestamp($row["timefrom"]));
+						}
+					} else {
+						$s_f = "";
+						if ($row["timeto"]!="") {
+							$t_f = datetime2timestamp($row["timeto"])-7199; # 決まってなければ２時間引く
+						} else {
+							$t_f = datetime2timestamp("1970/04/14 0".$hour_from.":00:00");
+						}
+					}
+					if ($row["dateto"]==$dispdate and $row["timeto"]!="") {
+						$t_t = datetime2timestamp($row["timeto"]);
+						$s_t = date("H:i",$t_t);
+					} elseif($row["dateto"]!=$dispdate) {
+						$t_t = datetime2timestamp("1970/04/14 23:59:00");
+						$s_t = date("m/d",date2timestamp($row["dateto"]));
+						if ($row["timeto"]!="") {
+							$s_t .= " ".date("H:i",datetime2timestamp($row["timeto"]));
+						}
+					} else {
+						$s_t = "";
+						if ($row["timefrom"]!="") {
+							$t_t = datetime2timestamp($row["timefrom"])+7199; # 決まってなければ２時間足す
+						} else {
+							$t_t = datetime2timestamp("1970/04/14 0".$hour_from.":00:00");
+						}
+					}
+
+					$txt_dt = "";
+					if ($row["create_user_id"] != "" && $row["create_user_id"] != $row["user_id"]) {
+						$txt_dt .= "<IMG SRC=\"../image/share.".$image_extension."\" WIDTH=\"11\" HEIGHT=\"9\" BORDER=\"0\">";
+					} elseif($row["sharelist"]!="") {
+						$txt_dt .= "<IMG SRC=\"../image/base.".$image_extension."\" WIDTH=\"9\" HEIGHT=\"11\" BORDER=\"0\">";
+					}
+					if ($row["opensign"] != "t") {
+						$txt_dt .= "<IMG SRC=\"../image/key.".$image_extension."\" WIDTH=\"9\" HEIGHT=\"13\" BORDER=\"0\">";
+					} else {
+						if ($row["viewsign"]!="t") {
+							$txt_dt .= "<IMG SRC=\"../image/eye.".$image_extension."\" WIDTH=\"11\" HEIGHT=\"8\" BORDER=\"0\">";
+						}
+					}
+					if ($row["timefrom"]!="") { $txt_dt .= $s_f; }
+					if ($row["timefrom"]!="" || $row["timeto"]!="") { $txt_dt .= "〜"; }
+					if ($row["timeto"]!="") { $txt_dt .= $s_t; }
+
+					if ($txt_dt!="") $txt .= $txt_dt."<br />";
+
+					$txt.= "・";
+						if (($row["viewsign"]=="t" || $row["viewsign"]=="" || empty($row["viewsign"])) || $row["user_id"]==$login_id || $row["create_user_id"]==$login_id || ($master_checkid != "" && preg_match("(^|,)".$row["user_id"]."(,|$)",$master_checkid) || preg_match("(^|,)".$login_id."(,|$)",$righthandman_ids))) {
+						$txt.= "<A HREF=\"./add/$serial&uid=$uid&s=".$row["seqno"]."\" ".$accesskey."=$c>";
+
+						$note = preg_replace("/\x0D\x0A|\x0D|\x0A|\r\n|\n|\r/"," ",mb_convert_kana($row["note"],"ak","EUC-JP"));
+						$str_note = "";
+						if (mb_strwidth($note)>$charW*2-1) {
+							$str_note = mb_strimwidth($note,0,$charW*2-2);
+							if ($str_note!=$note) { $str_note .= "."; }
+						} elseif (trim($note)=="") {
+							$str_note = "*内容未入力*";
+						} else {
+							$str_note = $note;
+						}
+						$txt.= $str_note;
+						$txt.= "</A>";
+					} else {
+						$txt.= "非表示";
+					}
+					$txt.= "<br>";
+				}
+			}
+			$txt.= "<hr size=\"0\">";
+			$backyear = date("Y",$dispstamp);
+		}
+
+		$txt.= "<CENTER>";
+		$txt.= "&lt;<A HREF=\"./$serial&uid=".$uid."&y=".date("Y",$startstamp-86400*7)."&m=".date("n",$startstamp-86400*7)."&d=".date("j",$startstamp-86400*7)."\">前週</A>";
+		$txt.= " <A HREF=\"./$serial&uid=$uid&&y=".date("Y",$startstamp+86400*7)."&m=".date("n",$startstamp+86400*7)."&d=".date("j",$startstamp+86400*7)."\">次週</A>&gt;";
+		$txt.= "</CENTER>";
+
+		$txt.= "<hr size=\"0\">";
+		$txt.= "<center>";
+		$txt.= "&lt;<a href=\"./monthly.phtml$serial&uid=$uid\">カレンダー</a>&gt;<br>";
+		$txt.= "</center>";
+		$txt.= "<div align=right>";
+		$txt.= "<a href=\"./add/$serial&uid=$uid\" ".$accesskey."=0>&emoji0;新規予定</a>";
+		$txt.= "</div>";
+	}
+	include "../footer.inc.php";
+?>

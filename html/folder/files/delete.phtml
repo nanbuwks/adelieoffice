@@ -1,0 +1,130 @@
+<?php
+	include "../../config.inc.php"; include "../../lib.inc.php";
+
+	$linktext = "<a href=\"../../\">トップページ</a> &gt; ";
+	$linktext.= "<a href=\"../\">Webフォルダ</a> &gt; ";
+	$linktext.= "<font color=\"#ffff00\">ファイルの削除</font>";
+
+	include "../../login_check.inc.php";
+
+	if ($login && sizeof($MES)==0) {
+		## 変数処理
+		$path = urldecode($_REQUEST["path"]);
+		$name = urldecode($_REQUEST["name"]);
+		$patharr = preg_split("/",$path);
+
+		## エラーチェック
+		$deletepath = $folderpath.$path;
+		$deletefile = $deletepath."/".$name;
+		if (!file_exists($deletepath)) {
+			$DMES[] = "指定されたフォルダが見つかりません。";
+		} else {
+			$fp = fopen($deletepath,"r");
+			if (!$fp) {
+				$DMES[] = "指定されたフォルダを開くことができませんでした。";
+			} else {
+				fclose($fp);
+				if (!file_exists($deletefile)) {
+					$DMES[] = "指定されたファイルが見つかりません。";
+				} else {
+					$fp = fopen($deletefile,"r");
+					if (!$fp) {
+						$DMES[] = "指定されたファイルを開くことができませんでした。";
+					} else {
+						fclose($fp);
+					}
+				}
+			}
+		}
+
+		## 関連データ削除
+		if (sizeof($DMES)==0) {
+			$sql = "SELECT seqno FROM files WHERE path='".db_textsafe($path)."' AND filename='".db_textsafe($name)."'";
+			$res = pg_query($conn,$sql);
+			$cnt = pg_num_rows($res);
+			if ($cnt>0) {
+				$row = pg_fetch_array($res,0);
+				$seqno = $row["seqno"];
+
+				## DB情報の削除
+				$sql = "DELETE FROM files WHERE seqno=".$seqno;
+				$res = pg_query($conn,$sql);
+
+				## サムネイル画像の削除
+				$imageno = sprintf("%09d",$seqno);
+				$thumbnailfilename = $thumbnailpath."/".$imageno.".png";
+				if (file_exists($thumbnailpath) && file_exists($thumbnailfilename)) {
+					unlink($thumbnailfilename);
+				}
+			}
+		}
+
+		if (sizeof($DMES)==0) {
+			if (preg_match("/^\/trash/i",$path)) {
+				unlink ($deletefile);
+			} else {
+				## ファイルの削除(TRASHへ移動)
+				## ゴミ箱フォルダ内の同名ファイルの存在確認
+				$cnt = 0;
+				while (true) {
+					if ($cnt==0) {
+						$toname = $name;
+					} else {
+						$p = strrpos($name,".");
+						if ($p>0) {
+							$toname = substr($name,0,$p)."~".$cnt.".".substr($name,$p+1);
+						} else {
+							$toname = substr($name,0,$p)."~".$cnt."";
+						}
+					}
+
+					if (!file_exists($folderpath."/trash/".$toname)) {
+						## 無い時は削除フォルダへ移動
+						if (!file_exists($folderpath."/trash")) {
+							mkdir($folderpath."/trash");
+						}
+						rename ($deletefile, $folderpath."/trash/".$toname);
+						break;
+					} else {
+						## ある時
+						if ($cnt>100) {
+							$DMES[] = "ファイルの削除に失敗しました（削除フォルダに同名のファイルがあります）";
+							break;
+						}
+						$cnt++;
+					}
+				}
+			}
+			clearstatcache();
+			if (file_exists($deletefile)) {
+				$DMES[] = "ファイルの削除に失敗しました";
+			}
+		}
+
+		if (sizeof($DMES)>0) {
+			## エラー時
+			include "../../header.inc.php";
+			flush();
+
+			$pagetext.= "<br>\n";
+			$pagetext.= "<center>\n";
+			$pagetext.= "<font color=\"#FF0000\">\n";
+			while (list($key,$val)=each($DMES)) {
+				$pagetext.= $val."<br>\n";
+			}
+			$pagetext.= "</font>\n";
+			$pagetext.= "<form><input type=\"button\" value=\"戻る\" ONCLICK=\"history.back()\"></form>\n";
+			$pagetext.= "</center>";
+
+			include "../../detail.inc.php";
+			include "../../footer.inc.php";
+		} else {
+			## 正常時
+			$returl = "../";
+			if ($p=="top") {
+				$returl = "../../";
+			}
+			header("Location: ".$returl);
+		}
+	}
+?>

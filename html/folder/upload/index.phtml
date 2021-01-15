@@ -1,0 +1,94 @@
+<?php
+  // ファイルの読込
+  include "../../config.inc.php";
+  include "../../lib.inc.php";
+
+  // リンク用テキストの設定
+  $linktext  = "<A HREF=\"../../\" CLASS=\"BAR\">トップページ</A> &gt; ";
+  $linktext .= "<A HREF=\"../\" CLASS=\"BAR\">Webフォルダ</A> &gt; ";
+  $linktext .= "<FONT COLOR=#FFFF00>ファイルのアップロード</FONT> ";
+
+  // パラメーターセット
+  $path = stripslashes($_REQUEST["path"]);
+  $comment = stripslashes($_POST["comment"]);
+
+  // 検索機能の使用?
+  $search = true;
+  $searchuri = "/folder/search/";
+
+  // ヘッダ表示
+  include "../../header.inc.php";
+  flush();
+
+  $pagetext  = "";
+#  $path = stripslashes($path);
+
+  if ($login && sizeof($MES)==0) {
+#  // 操作権限のチェック
+#  if (sizeof($MES)==0 && $login && !empty($login_id)) {
+#    $sql = "SELECT * FROM users WHERE id='".$login_id."' AND upload_sign='t'";
+#    $res = pg_query($conn,$sql);
+#    $cnt = pg_num_rows($res);
+#    if ($cnt<1) {
+#      $DMES[] = "ご利用中のアカウントではファイルのアップロードはできません";
+#    }
+#  }
+    //
+    if ($path=="") $path = $_COOKIE["folder_path"];
+    if ($path=="") {
+      $DMES[] = "パスが指定されていません";
+    }
+
+    if (sizeof($DMES)>0) {
+      // エラー時
+      $pagetext .= "<BR><CENTER>\n";
+      $pagetext .= "<FONT COLOR=#FF0000>\n";
+      while (list($key,$val)=each($DMES)) {
+        $pagetext .= $val."<BR>\n";
+      }
+      $pagetext .= "</FONT>\n";
+      $pagetext .= "<FORM><INPUT TYPE=BUTTON VALUE=\"戻る\" ONCLICK=\"history.back()\"></FORM>\n";
+      $pagetext .= "</CENTER>";
+    } else {
+      // 通常
+
+      $pagetext .= "
+<CENTER><BR>
+アップロードしたいファイルを参照ボタンで選択してアップロードボタンを押してください <BR><BR>";
+      // Mac用メッセージ
+      if (preg_match("/(Mac_|Macintosh)/",$user_agent,$arr)) {
+        $pagetext .= "<FONT COLOR=#FF0000>Macの場合は事前にファイルに適切な拡張子をつけてからアップロードしてください。</FONT>\n";
+      }
+
+      $pagetext .= "
+<TABLE BORDER=0 CELLPADDING=4 CELLSPACING=1 width=480 BGCOLOR=#999999><TR>
+<FORM NAME=\"file_upload\" ACTION=\"./upload.phtml\" METHOD=\"POST\" ENCTYPE=\"multipart/form-data\">
+<INPUT TYPE=HIDDEN NAME=\"uppath\" VALUE=\"".urlencode($path)."\">
+<INPUT TYPE=HIDDEN NAME=\"MAX_FILE_SIZE\" VALUE=\"$upload_max\">
+<TD ALIGN=RIGHT WIDTH=90 NOWRAP VALIGN=TOP BGCOLOR=$td_back_left STYLE=\"LINE-HEIGHT:15pt\">カレントフォルダ</TD>
+<TD ALIGN=LEFT BGCOLOR=$td_back STYLE=\"LINE-HEIGHT:15pt\">".str_rcut(urldecode($path),82)."</TD>
+</TR>
+
+<TR>
+<TD ALIGN=RIGHT WIDTH=90 NOWRAP VALIGN=TOP BGCOLOR=$td_back_left STYLE=\"LINE-HEIGHT:15pt\">ファイル名</TD>
+<TD ALIGN=LEFT BGCOLOR=$td_back><IMG SRC=\"../../image/icon/unknown.gif\" name=\"sampleimage\" ALIGN=ABSMIDDLE><INPUT TYPE=\"file\" NAME=\"uploadfile\" SIZE=40 STYLE=\"width:290px\" STYLE=\"ime-mode:disabled\"></TD>
+</TR>
+
+<TR>
+<TD ALIGN=RIGHT WIDTH=90 NOWRAP VALIGN=TOP BGCOLOR=$td_back_left STYLE=\"LINE-HEIGHT:15pt\">コメント</TD>
+<TD ALIGN=LEFT BGCOLOR=$td_back><TEXTAREA NAME=\"comment\" COLS=52 ROWS=5 STYLE=\"width:350px;height:60px\">".$comment."</TEXTAREA></TD>
+</TR>
+</TABLE><BR>
+
+<INPUT TYPE=SUBMIT NAME=\"UPLOAD\" VALUE=\"ファイルのアップロード\">
+</FORM>
+</CENTER>
+";
+    }
+  }
+
+  // 明細表示
+  include "../../detail.inc.php";
+  // フッタ表示
+  include "../../footer.inc.php";
+?>

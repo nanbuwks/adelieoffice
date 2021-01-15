@@ -1,0 +1,144 @@
+<?php
+  include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+  include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+  $pagetitle = "リンク登録";
+  include ("../../header.inc.php");
+
+  if (login && sizeof($MES)==0) {
+    if (!empty($_REQUEST["s"])) { $s= $_REQUEST["s"];}
+    if (!empty($_REQUEST["p"])) { $p= $_REQUEST["p"];}
+    ## タイトル関連前処理
+    if (!empty($_REQUEST["t"])) {
+      $t = textsafe(sjis2euc(remove_emoji($_REQUEST["t"])));
+
+      $t = mb_convert_kana($t,"aKV","EUC-JP");
+      if(strlen($t)>40) {
+        $MES[] = "タイトルは全角20文字(半角40文字)までで入力してください";
+        $t = mb_strcut($t,0,40);
+      }
+    } else {
+      $MES[] = "タイトル未入力";
+    }
+
+    ## URL関連前処理
+    if (!empty($_REQUEST["u"])) {
+      $u = textsafe(sjis2euc(remove_emoji($_REQUEST["u"])));
+      $u = mb_convert_kana($u,"a","EUC-JP");
+      if (substr($u,strlen($u)-1,1)=="/") {
+        $u=substr($u,0,strlen($u));
+      }
+      $STR = $u;
+      if ($STR=="http://") {
+        $MES[] = "URLが未入力です";
+      } else {
+        if (substr($STR,0,5)!="http:") {
+          $MES[] = "ftpアドレスなどは登録できません";
+        } else {
+          if (!preg_match("http://",$STR)) {
+            $MES[] = "「http://」から正確に入力してください";
+          }
+        }
+      }
+    } else {
+      $MES[] = "URLを入力してください";
+    }
+
+    if (sizeof($MES)==0) {
+      ## 新規時
+      if (empty($s)){
+        ## seqno採番
+        $sql = "SELECT * FROM links ORDER BY seqno desc;";
+        $res = pg_query($conn,$sql);
+        $cnt = pg_num_rows($res);
+        if ($cnt==0) {
+          $s = 1;
+        } else {
+          $row = pg_fetch_array($res, 0);
+          $s = $row["seqno"] + 1;
+        }
+        $sql  = "INSERT INTO links (";
+        $sql .= "seqno,";
+        $sql .= "type,";
+        $sql .= "user_id,";
+        $sql .= "title,";
+        $sql .= "url,";
+        $sql .= "linksign,";
+        $sql .= "keitaisign,";
+        $sql .= "createstamp,";
+        $sql .= "updatestamp";
+        $sql .= ") VALUES (";
+        $sql .= $s.",";
+        $sql .= "'".$agenttype."',";
+        $sql .= "'".$login_id."',";
+        $sql .= "'".$t."',";
+        $sql .= "'".$u."',";
+        $sql .= "'t',";
+        $sql .= "'t',";
+        $sql .= "'now',";
+        $sql .= "'now'";
+        $sql .= ")";
+        $res = pg_query($conn,$sql);
+        if ($res==false) {
+          $MES[] = "登録に失敗しました。";
+        } else {
+          $mode = "add";
+        }
+      } else {  // 更新
+        ### その物自身
+        $sql  = "UPDATE links SET ";
+        $sql .= "url='".$u."',";
+        $sql .= "title='".$t."',";
+        $sql .= "linksign='t',";
+        $sql .= "updatestamp='now'";
+        $sql .= " where seqno=".$s."";
+        $res  = pg_query($conn,$sql);
+        if ($res==false) {
+          $MES[] = "更新に失敗しました。";
+        } else {
+          $mode = "edit";
+        }
+      }
+
+      ## リンク先テキストの更新
+      if (sizeof($MES)==0) {
+        $rc = exec("/home/www/cgi-bin/get_urls.pl ".$db." ".$edit_url." > /dev/null &",$res);
+      }
+    }
+  }
+
+  if (sizeof($MES)>0) {
+    ## エラー時
+    $txt.= "<FONT COLOR=#FF0000>";
+    while (list($key,$val)=each($MES)) {
+      $txt.= $val."<BR>";
+    }
+    $txt.= "</FONT><BR>";
+    $txt.= "<FORM ACTION=\"../add/\" METHOD=POST>";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"mode\" VALUE=\"back\">";
+    if (!empty($s)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"s\" value=\"$s\">"; }
+    if (!empty($p)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"p\" value=\"$p\">"; }
+    if (!empty($t)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"t\" value=\"$t\">"; }
+    if (!empty($u)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"u\" value=\"$u\">"; }
+    $txt.= "<CENTER><INPUT TYPE=SUBMIT VALUE=\"戻る\"></CENTER>";
+    $txt.= "</FORM><BR>";
+  } else {
+    ## 正常時
+    $txt.= "<FORM ACTION=\"../$serial\" METHOD=POST>";
+    if (!empty($sn)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">"; }
+    if (!empty($p))  { $txt.= "<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"$p\">"; }
+    $txt.= "<CENTER><BR>";
+    if ($mode=="add") {
+      $txt.= "登録完了";
+    } else {
+      $txt.= "更新完了";
+    }
+    $txt.= "&emojimagglass;";
+    $txt.= "<BR><BR><INPUT TYPE=SUBMIT VALUE=\"戻る\">";
+    $txt.= "</CENTER>";
+    $txt.= "</FORM><BR>";
+  }
+
+  include("../../footer.inc.php");
+?>

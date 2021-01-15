@@ -1,0 +1,79 @@
+<?php
+  include ("../config.inc.php"); include ("../lib.inc.php");
+  include ("../login_check.inc.php");
+
+	if ($login) {
+	  // エラーチェック
+		if (empty($s) || trim($s)=="" || !is_numeric($s)) {
+			$MES[] = "不正なパラメータ";
+		} else {
+		  $sql = "SELECT path FROM files WHERE seqno=".$s;
+		  $res = pg_query($conn,$sql);
+		  $cnt = pg_num_rows($res);
+	    if ($cnt==0) {
+				$MES[] = "ファイル不明";
+			} else {
+				$row = pg_fetch_array($res,0);
+				$path = $row["path"];
+
+				$sql = "SELECT view_group_ids,view_user_ids FROM folders WHERE path='".$path."'";
+				$res = pg_query($conn,$sql);
+        $cnt = pg_num_rows($res);
+        if ($cnt>0) {
+          $view = false;
+          $row = pg_fetch_array($res,0);
+          if ($row["view_group_ids"]=="" && $row["view_user_ids"]=="") {
+            $view = true;
+          } elseif ($row["view_group_ids"]!="") {
+            $view_group_id = preg_split(",",$row["view_group_ids"]);
+            if (sizeof($view_group_id)>0) while (list($seq,$id)=each($view_group_id)) {
+              if (sizeof($groups)>0) {
+                reset($groups);
+                while (list($gseq,$gid)=each($groups)) {
+                  if ($gid==$id) { $view = true; break; }
+                }
+              }
+            }
+          } elseif ($row["view_user_ids"]!="") {
+            $view_user_id = preg_split(",",$row["view_user_ids"]);
+            if (sizeof($view_user_id)>0) while (list($seq,$id)=each($view_user_id)) {
+              if ($login_id==$id) { $view = true; break; }
+            }
+          }
+          if (!$view) {
+						$MES[] = "権限なし";
+          }
+        }
+			}
+		}
+	}
+
+  if (sizeof($MES)==0) {
+		$thumbnailfilename = $thumbnailpath."/".sprintf("%09d",$s).".png";
+    if (!file_exists($thumbnailfilename)) {
+      $MES[] = "ファイルなし";
+    } else {
+      $fp = fopen($thumbnailfilename,"r");
+      if ($fp == false) {
+        $MES[] = "リードエラー";
+      }
+    }
+  }
+
+  if (sizeof($MES)>0) {
+    // エラー時
+    header("HTTP/1.1 404 Not Found");
+    exit;
+  } else {
+    // 通常
+    /* Download */
+    $user_agent = getenv("HTTP_USER_AGENT");
+    header("Content-Type: image/png"); 
+    header("Content-Description: Generated Data");
+    header("Content-Transfer-Encoding: binary"); 
+    header("Content-Disposition: attachment; filename=$filename"); 
+    header("Content-Size: ".filesize($thumbnailfilename)); 
+    $fp = fopen($thumbnailfilename,"r"); fpassthru($fp);
+    flush();
+  }
+?>

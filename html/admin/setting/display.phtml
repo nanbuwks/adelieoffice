@@ -1,0 +1,158 @@
+<?php
+	include "../../config.inc.php"; include "../../lib.inc.php";
+	$linktext = "<A HREF=\"../../\" CLASS=\"BAR\">トップページ</A> &gt; ";
+	$linktext.= "<A HREF=\"../\" CLASS=\"BAR\">管理者メニュー</A> &gt; ";
+	$linktext.= "<FONT COLOR=#FFFF00>管理者設定:表示設定</FONT> ";
+	include "../../header.inc.php"; include "../menu.inc.php";
+
+	if (!$login) {
+		$MES[] = "先にログインしてください";
+	} elseif ($admin_sign!="t") {
+		$MES[] = "本機能は管理者のみご利用可能です";
+	} elseif ($login && $admin_sign=="t") {
+		if ($err!="t") {
+			$row = get_row("admin","*","");
+			$service_name = $row["service_name"];
+			$url          = $row["url"];
+			$interval     = $row["interval"];
+			$sunday       = $row["sunday"];
+			$monday       = $row["monday"];
+			$tuesday      = $row["tuesday"];
+			$wednesday    = $row["wednesday"];
+			$thursday     = $row["thursday"];
+			$friday       = $row["friday"];
+			$saturday     = $row["saturday"];
+		} else {
+			$service_name = textsafe($_POST["service_name"]);
+			$url          = textsafe($_POST["url"]);
+			$interval     = textsafe($_POST["interval"]);
+			$sunday       = $_POST["sunday"];
+			$monday       = $_POST["monday"];
+			$tuesday      = $_POST["tuesday"];
+			$wednesday    = $_POST["wednesday"];
+			$thursday     = $_POST["thursday"];
+			$friday       = $_POST["friday"];
+			$saturday     = $_POST["saturday"];
+		}
+
+		if (empty($service_name)) $service_name = "ペンギンオフィス";
+		if (empty($interval)) $interval = 10;
+
+		$txt.= "<SCRIPT LANGUAGE=\"JavaScript\">\n";
+		$txt.= "<!--\n";
+		$txt.= "function updateconf() {\n";
+		$txt.= "	return confirm('基本表示を更新します\\nよろしいですか？');\n";
+		$txt.= "}\n";
+		$txt.= "//-->\n";
+		$txt.= "</SCRIPT>\n";
+		$txt.= "
+<BR><DIV ALIGN=CENTER>
+
+<TABLE BORDER=0 CELLPADDING=0 CELLSPACING=0 WIDTH=500>
+<TR>
+<TD ALIGN=CENTER WIDTH=110 HEIGHT=25 background=\"../../image/tab.gif\"><A HREF=\"./\">管理者情報</A></TD>
+<TD ALIGN=CENTER WIDTH=10 HEIGHT=25>&nbsp;</TD>
+<TD ALIGN=CENTER WIDTH=110 HEIGHT=25 background=\"../../image/tabselect.gif\">表示設定</TD>
+<TD ALIGN=CENTER WIDTH=10 HEIGHT=25>&nbsp;</TD>
+<TD ALIGN=CENTER WIDTH=110 HEIGHT=25 background=\"../../image/tab.gif\"><A HREF=\"./system.phtml\">システム設定</A></TD>
+<TD WIDTH=140>&nbsp;</TD>
+</TR>
+</TABLE>
+
+<TABLE BORDER=0 CELLPADDING=10 CELLSPACING=0 WIDTH=500 BGCOLOR=#666666>
+<FORM ACTION=\"./display_update.phtml\" METHOD=POST onSubmit=\"return updateconf()\">
+<TR><TD ALIGN=CENTER BGCOLOR=#9999FF STYLE=\"border-left-width:2;border-left-color:#CCCCFF;border-left-style:solid;border-right-width:2;border-right-color:#666699;border-right-style:solid;border-bottom-width:2;border-bottom-color:#666699;border-bottom-style:solid\"><BR>
+設定を変更して更新ボタンを押してください。<BR><BR>
+<TABLE BORDER=0 CELLPADDING=3 CELLSPACING=1 BGCOLOR=#666666>
+";
+		$txt.= "<TR><TD ID=\"list_h01\">サービス名(タイトル)</FONT></TH>\n";
+		$txt.= "<TD NOWRAP ALIGN=left BGCOLOR=#FFFFFF>";
+		$txt.= "<INPUT TYPE=TEXT SIZE=48 NAME=\"service_name\" VALUE=\"$service_name\" STYLE=\"width:285px\">";
+		$txt.= "</TD></TR>\n";
+
+		$txt.= "<TR><TD ID=\"list_h01\">ホームページリンク</FONT></TH>\n";
+		$txt.= "<TD NOWRAP ALIGN=left BGCOLOR=#FFFFFF>";
+		$txt.= "<FONT COLOR=#555555 STYLE=\"font-size:8pt\">&nbsp;例：http://www.adelie.ne.jp/</FONT><BR>";
+		$txt.= "<INPUT MAXLENGTH=80 NAME=url SIZE=40 value=\"$url\" STYLE=\"background-color:#EEEEFF\"><BR>";
+		$txt.= "<FONT COLOR=#555555 STYLE=\"font-size:8pt\">&nbsp;※設定しておくとサービス名横のリンク画像から指定<BR>&nbsp;&nbsp;&nbsp;されたホームページへジャンプすることができます</FONT><BR>";
+		$txt.= "</TD></TR>\n";
+
+		$txt.= "<TR><TD ID=\"list_h01\">時刻の表示間隔</FONT></TH>\n";
+		$txt.= "<TD NOWRAP ALIGN=left BGCOLOR=#FFFFFF>";
+		$txt.= "<INPUT TYPE=RADIO NAME=\"interval\" VALUE=\"1\"";
+		if ($interval<=1) $txt.= " CHECKED";
+		$txt.= ">1分";
+		$txt.= "<INPUT TYPE=RADIO NAME=\"interval\" VALUE=\"5\"";
+		if ($interval>1 && $interval<=5) $txt.= " CHECKED";
+		$txt.= ">5分";
+		$txt.= "<INPUT TYPE=RADIO NAME=\"interval\" VALUE=\"10\"";
+		if ($interval>5 && $interval<=10) $txt.= " CHECKED";
+		$txt.= ">10分";
+		$txt.= "<INPUT TYPE=RADIO NAME=\"interval\" VALUE=\"15\"";
+		if ($interval>10 && $interval<=15) $txt.= " CHECKED";
+		$txt.= ">15分";
+		$txt.= "<INPUT TYPE=RADIO NAME=\"interval\" VALUE=\"30\"";
+		if ($interval>15) $txt.= " CHECKED";
+		$txt.= ">30分";
+		$txt.= "</TD></TR>\n";
+
+		$txt.= "<TR><TD ID=\"list_h01\">休日設定</FONT></TH>\n";
+		$txt.= "<TD NOWRAP ALIGN=left BGCOLOR=#FFFFFF>";
+		$txt.= "<INPUT TYPE=CHECKBOX NAME=\"sunday\" VALUE=\"t\"";
+		if ($sunday=="t") $txt.= " CHECKED";
+		$txt.= "><FONT COLOR=#FF0000>日</FONT>";
+		$txt.= "<INPUT TYPE=CHECKBOX NAME=\"monday\" VALUE=\"t\"";
+		if ($monday=="t") $txt.= " CHECKED";
+		$txt.= ">月";
+		$txt.= "<INPUT TYPE=CHECKBOX NAME=\"tuesday\" VALUE=\"t\"";
+		if ($tuesday=="t") $txt.= " CHECKED";
+		$txt.= ">火";
+		$txt.= "<INPUT TYPE=CHECKBOX NAME=\"wednesday\" VALUE=\"t\"";
+		if ($wednesday=="t") $txt.= " CHECKED";
+		$txt.= ">水";
+		$txt.= "<INPUT TYPE=CHECKBOX NAME=\"thursday\" VALUE=\"t\"";
+		if ($thursday=="t") $txt.= " CHECKED";
+		$txt.= ">木";
+		$txt.= "<INPUT TYPE=CHECKBOX NAME=\"friday\" VALUE=\"t\"";
+		if ($friday=="t") $txt.= " CHECKED";
+		$txt.= ">金";
+		$txt.= "<INPUT TYPE=CHECKBOX NAME=\"saturday\" VALUE=\"t\"";
+		if ($saturday=="t") $txt.= " CHECKED";
+		$txt.= "><FONT COLOR=#0000FF>土</FONT>";
+
+		$txt.= "</TD></TR>\n";
+
+		$txt.= "
+</TABLE>
+<BR>
+<INPUT TYPE=SUBMIT VALUE=\"更新の実行\"><BR>
+<BR>
+</TD></TR></TABLE>
+<BR>
+
+
+</FORM>
+</DIV>
+
+</TD>
+</TR>
+</TABLE>
+
+<BR>
+";
+	} else {
+		$MES[] = "操作が正しくありません";
+	}
+
+	if (sizeof($MES)>0) {
+		$txt.= "<CENTER><BR><FONT COLOR=#FF0000>\n";
+		while(list($key,$val)=each($MES)) {
+			$txt.= $val."<BR>\n";
+		}
+		$txt.= "</FONT></CENTER>\n";
+	}
+
+	$pagetext = $txt;
+	include "../../detail.inc.php";
+	include "../../footer.inc.php";
+?>

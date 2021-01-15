@@ -1,0 +1,840 @@
+<?php
+  include "../config.inc.php";
+  include "../lib.inc.php";
+
+  // リンク用テキストの設定
+  $linktext  = "<A HREF=\"../\" CLASS=\"BAR\">トップページ</A> &gt; ";
+  $linktext .= "<FONT COLOR=#FFFF00>Webフォルダ</FONT> ";
+
+  $cols = 6; // アイコン表示の列数
+  $thumbnailcols = 4; // サムネイル表示の列数 2005'05/01 added by ori
+
+  if (!file_exists($folderpath)) {
+    print "<CENTER>Webフォルダ保存用ディレクトリの準備が完了していません。<BR>フォルダが作成されパーミッションが正しいか確認してください。</CENTER>";
+  exit;
+  }
+
+  // ディレクトリツリー用
+  if (!empty($pathon)) {
+    $_SESSION[stripslashes($pathon)] = "on";
+  } elseif (!empty($pathoff)) {
+    $_SESSION[stripslashes($pathoff)] = "off";
+  }
+  if (!empty($relpath) && empty($pathon) && empty($pathoff)) {
+    if ($_SESSION[stripslashes($relpath)] != "on") {
+      $_SESSION[stripslashes($relpath)] = "on";
+    }
+  }
+  if (empty($_SESSION["/"])) {
+    $_SESSION["/"] = "on";
+  }
+
+  // 表示中のディレクトリエントリ
+  if (!empty($_REQUEST["relpath"])) {
+    $relpath = stripslashes($_REQUEST["relpath"]);
+    if (substr($relpath,-4)=="/../") {
+      $relpath = dirname(substr($relpath,0,strlen($relpath)-4))."/";
+    }
+    $headertext .= "Set-Cookie: folder_path=".$relpath."; path=/;\n";
+  } else {
+    $relpath = $_COOKIE["folder_path"];
+  }
+  $relpath = str_replace("..","",$relpath);
+  $relpath = preg_replace("/\/+/","/",$relpath);
+
+  // 前回設定値の保存と復旧(Cookie使用)
+  if (!empty($_POST["viewtype"]) || !empty($_GET["viewtype"])) {
+    $viewtype = $_REQUEST["viewtype"];
+    $headertext .= "Set-Cookie: folder_viewtype=".$viewtype."; path=/; expires=".gmdate("l, d-M-Y H:i:s",time()+15552000)." GMT;\n";
+  } else {
+    $viewtype = $_COOKIE["folder_viewtype"];
+  }
+  if (!empty($_POST["viewsort"]) || !empty($_GET["viewsort"])) {
+    $viewsort = $_REQUEST["viewsort"];
+    $headertext .= "Set-Cookie: folder_viewsort=".$viewsort."; path=/; expires=".gmdate("l, d-M-Y H:i:s",time()+15552000)." GMT;\n";
+  } else {
+    $viewsort = $_COOKIE["folder_viewsort"];
+  }
+  if (!empty($_POST["vieworder"]) || !empty($_GET["vieworder"])) {
+    $vieworder = $_REQUEST["vieworder"];
+    $headertext .= "Set-Cookie: folder_vieworder=".$vieworder."; path=/; expires=".gmdate("l, d-M-Y H:i:s",time()+15552000)." GMT;\n";
+  } else {
+    $vieworder = $_COOKIE["folder_vieworder"];
+  }
+
+  if (!empty($_GET["search"]) && $_GET["search"]=="t") {
+    if (!empty($_GET["kwd"])) {
+      $kwd = stripslashes($_GET["kwd"]);
+      $headertext .= "Set-Cookie: folder_kwd=".urlencode($kwd)."; path=/;\n";
+    } else {
+      $kwd = "";
+      $headertext .= "Set-Cookie: folder_kwd=; path=/;\n";
+    }
+  } else {
+    $kwd = urldecode($_COOKIE["folder_kwd"]);
+  }
+
+  if (empty($viewtype))  $viewtype  = "detail";
+  if (empty($viewsort))  $viewsort  = "name";
+  if (empty($vieworder)) $vieworder = "asc";
+
+  if (!file_exists($folderpath)) {
+    print "<CENTER>Webフォルダ保存用ディレクトリの準備が完了していません。<BR>フォルダが作成されパーミッションが正しいか確認してください。</CENTER>";
+  exit;
+  }
+
+  if (empty($relpath)) $relpath = "/";
+#  $viewpath = stripslashes($folderpath.$relpath);
+  $viewpath = $folderpath.$relpath;
+  if (!file_exists($viewpath)) {
+    $relpath = "/";
+    $viewpath = $folderpath.$relpath;
+  }
+
+  // 初期値の設定
+#  $rows = $question_rows;
+
+  // 変数の上書き
+#  if ($kindid=="") $kindid=1;
+#  if ($p<1) $p = 1;
+
+  // ヘッダ表示
+  include "../header.inc.php";
+
+  // ディレクトリツリー表示のコントロール用(SESSIONを利用)
+  if (!empty($pathon)) {
+    $_SESSION[$pathon] = "on";
+  } elseif (!empty($pathoff)) {
+    $_SESSION[$pathoff] = "off";
+  }
+  if (!empty($relpath) && empty($pathon) && empty($pathoff)) {
+    if ($_SESSION[$relpath] != "on") {
+      $_SESSION[$relpath] = "on";
+    }
+  }
+  if (empty($_SESSION["/"])) {
+    $_SESSION["/"] = "on";
+  }
+
+  // 所属グループの獲得
+  if ($login) {
+    $sql_entry = "SELECT * FROM users_entry WHERE user_id='$login_id'";
+    $res_entry = pg_query($conn,$sql_entry);
+    $cnt_entry = pg_num_rows($res_entry);
+    if ($cnt_entry>0) {
+      for ($i=0;$i<$cnt_entry;$i++) {
+        $row_entry = pg_fetch_array($res_entry,$i);
+        $groups[] = $row_entry["group_id"];
+      }
+    }
+  }
+
+  // 機能別メニュー内容の取得
+  include "./menu.inc.php";
+
+  if ($login && sizeof($MES)==0) {
+    $pagetext  = "";
+    $pagetext .= "<SCRIPT LANGUAGE=\"JavaScript\">\n";
+    $pagetext .= "<!--\n";
+    $pagetext .= "function reload(o) {\n";
+    $pagetext .= "  var v = o.options[o.selectedIndex].value; o.selectedIndex = 0;\n";
+    $pagetext .= "  if (v!=\"\" && v!=\"null\") location.href='./?viewsort='+v;\n";
+    $pagetext .= "}\n";
+    $pagetext .= "//-->\n";
+    $pagetext .= "</SCRIPT>\n";
+
+    // ファイル獲得
+#    $viewpath = stripslashes($folderpath.$relpath);
+    $handle = opendir($viewpath);
+    while ($file = readdir($handle)) { 
+      if ($file != "." && $file != "..") { 
+        $filename = $file;
+
+        if (substr($filename,0,1)==".") {
+          $file_org = substr($filename,1);
+        } else {
+          $file_org = $filename;
+        }
+        $file_org = strtoupper($file_org);
+
+        if ($viewsort=="name") {
+          $value = basename($viewpath."/".$file_org);
+        } elseif ($viewsort=="ext") {
+          $p = strpos(basename($viewpath."/".$file_org),".");
+          if ($p>0) {
+            $value = substr(basename($viewpath."/".$file_org),$p+1);
+          } else {
+            $value = "";
+          }
+          $value .= str_repeat(" ",200-strlen($value));
+          $value .= basename($viewpath."/".$file_org);
+        } elseif ($viewsort=="size") {
+          $value = filesize($viewpath."/".$file);
+        } elseif ($viewsort=="stamp") {
+          $value = filemtime($viewpath."/".$file);
+        } else {
+          $value = filemtime($viewpath."/".$file);
+        }
+
+				$checkname = $viewpath;
+				if (substr($checkname,-1,1)!="/") { $checkname .= "/"; }
+				$checkname .= $file;
+				
+        if (is_dir($checkname)) {
+          if ($admin_sign=="t" || $admin_sign!="t" && $file != "trush") {
+            if ($viewsort=="ext" || $viewsort=="size") {
+              $value = basename($viewpath."/".$file_org);
+            }
+            $dirs[$filename] = $value;
+          }
+        }
+        if (is_file($checkname)) {
+          $files[$filename] = $value;
+        }
+      }
+    }
+    closedir($handle); 
+
+    // ソート
+    if (sizeof($dirs)>0) {
+      if ($vieworder=="asc") {
+        asort($dirs);
+      } else {
+        arsort($dirs);
+      }
+    }
+    if (sizeof($files)>0) {
+      if ($vieworder=="asc") {
+        asort($files);
+      } else {
+        arsort($files);
+      }
+    }
+
+    ## アップロード・フォルダ作成ボタン表示
+    $pagetext .= "<TABLE BORDER=0 CELLPADDING=0 CELLSPACING=0 WIDTH=100%><TR><TD ALIGN=RIGHT>";
+    $checkpath = $relpath;
+    if ($checkpath=="") $checkpath = "/";
+    if ($download_sign=="t") {
+      $pagetext .= "<A HREF=\"./upload/?path=".urlencode($checkpath)."\">";
+      $pagetext .= "<IMG SRC=\"../image/filesadd.gif\" ALIGN=ABSMIDDLE BORDER=0 ALT=\"アップロード\"> アップロード";
+      $pagetext .= "</A>&nbsp;";
+      $pagetext .= "<A HREF=\"./makefolder/?path=".urlencode($checkpath)."\">";
+      $pagetext .= "<IMG SRC=\"../image/foldersadd.gif\" ALIGN=ABSMIDDLE BORDER=0 ALT=\"フォルダ作成\"> フォルダ作成";
+      $pagetext .= "</A>";
+    }
+    $pagetext .= "</TD></TR></TABLE>";
+
+    $pagetext .= "<TABLE BORDER=0 CELLSPACING=0 CELLPADDING=4 WIDTH=100%><TR><TD>";
+    $pagetext .= "<INPUT TYPE=RADIO NAME=\"viewtype\" VALUE=\"icon\"";
+    if ($viewtype=="icon") {
+      $pagetext .= " CHECKED";
+    } else {
+      $pagetext .= " onclick=\"location.href='./?viewtype=icon'\"";
+    }
+    $pagetext .= ">アイコン";
+
+    $pagetext .= "<INPUT TYPE=RADIO NAME=\"viewtype\" VALUE=\"thumbnail\"";
+    if ($viewtype=="thumbnail") {
+      $pagetext .= " CHECKED";
+    } else {
+      $pagetext .= " onclick=\"location.href='./?viewtype=thumbnail'\"";
+    }
+    $pagetext .= ">サムネイル";
+
+    $pagetext .= " <INPUT TYPE=RADIO NAME=\"viewtype\" VALUE=\"detail\"";
+    if ($viewtype=="detail") {
+      $pagetext .= " CHECKED";
+    } else {
+      $pagetext .= " onclick=\"location.href='./?viewtype=detail'\"";
+    }
+    $pagetext .= ">詳細";
+    $pagetext .= "</TD><TD ALIGN=RIGHT>";
+    $pagetext .= "<SELECT NAME=\"viewsort\" onChange=\"reload(this)\" STYLE=\"line-height:14px;Height:17px\">";
+    $pagetext .= "<OPTION VALUE=\"name\"";
+    if ($viewsort=="name") $pagetext .= " SELECTED";
+    $pagetext .= ">名前順";
+    $pagetext .= "<OPTION VALUE=\"ext\"";
+    if ($viewsort=="ext") $pagetext .= " SELECTED";
+    $pagetext .= ">種類順";
+    $pagetext .= "<OPTION VALUE=\"size\"";
+    if ($viewsort=="size") $pagetext .= " SELECTED";
+    $pagetext .= ">サイズ順";
+    $pagetext .= "<OPTION VALUE=\"stamp\"";
+    if ($viewsort=="stamp") $pagetext .= " SELECTED";
+    $pagetext .= ">日付順";
+    $pagetext .= "</SELECT>";
+    $pagetext .= "<INPUT TYPE=RADIO NAME=\"vieworder\" VALUE=\"asc\"";
+    if ($vieworder=="asc") {
+      $pagetext .= " CHECKED";
+    } else {
+      $pagetext .= " onclick=\"location.href='./?vieworder=asc'\"";
+    }
+    $pagetext .= ">昇順";
+    $pagetext .= "<INPUT TYPE=RADIO NAME=\"vieworder\" VALUE=\"desc\"";
+    if ($vieworder=="desc") {
+      $pagetext .= " CHECKED";
+    } else {
+      $pagetext .= " onclick=\"location.href='./?vieworder=desc'\"";
+    }
+    $pagetext .= ">降順";
+    $pagetext .= "</TD><TR></TABLE>\n";
+
+    // フォルダ・ファイル表示
+    if ($viewtype=="detail") {
+      $pagetext .= "<TABLE BORDER=0 CELLSPACING=0 CELLPADDING=4 WIDTH=100%>";
+    } else {
+      $pagetext .= "<TABLE BORDER=0 CELLSPACING=0 CELLPADDING=0 WIDTH=100%><TR><TD ALIGN=CENTER>";
+      $pagetext .= "<TABLE BORDER=0 CELLSPACING=0 CELLPADDING=4 WIDTH=100%>";
+    }
+    $cc = $c;  //$cを$ccに変更しておく(下で$cを使う為)
+    $c = 0;
+
+    if ($viewtype=="detail") {
+      $pagetext .= "<TR BGCOLOR=#999999 HEIGHT=22>";
+      $pagetext .= "<TH ALIGN=CENTER WIDTH=40>";
+      if ($viewsort<>"ext") {
+        $pagetext .= "<A HREF=\"./?viewsort=ext\" STYLE=\"color:#FFFFFF\">";
+      } else {
+        if ($vieworder=="desc") {
+          $pagetext .= "<A HREF=\"./?vieworder=asc\" STYLE=\"color:#FFFFFF\">";
+        } else {
+          $pagetext .= "<A HREF=\"./?vieworder=desc\" STYLE=\"color:#FFFFFF\">";
+        }
+      }
+      $pagetext .= "種類</A></TH>";
+
+      $pagetext .= "<TH ALIGN=LEFT>&nbsp;";
+      if ($viewsort<>"name") {
+        $pagetext .= "<A HREF=\"./?viewsort=name\" STYLE=\"color:#FFFFFF\">";
+      } else {
+        if ($vieworder=="desc") {
+          $pagetext .= "<A HREF=\"./?vieworder=asc\" STYLE=\"color:#FFFFFF\">";
+        } else {
+          $pagetext .= "<A HREF=\"./?vieworder=desc\" STYLE=\"color:#FFFFFF\">";
+        }
+      }
+      $pagetext .= "ファイル名</A></TH>";
+
+      $pagetext .= "<TH ALIGN=RIGHT WIDTH=70>";
+      if ($viewsort<>"size") {
+        $pagetext .= "<A HREF=\"./?viewsort=size\" STYLE=\"color:#FFFFFF\">";
+      } else {
+        if ($vieworder=="desc") {
+          $pagetext .= "<A HREF=\"./?vieworder=asc\" STYLE=\"color:#FFFFFF\">";
+        } else {
+          $pagetext .= "<A HREF=\"./?vieworder=desc\" STYLE=\"color:#FFFFFF\">";
+        }
+      }
+      $pagetext .= "サイズ</A>&nbsp;</TH>";
+
+      $pagetext .= "<TH ALIGN=CENTER WIDTH=90>";
+      if ($viewsort<>"stamp") {
+        $pagetext .= "<A HREF=\"./?viewsort=stamp\" STYLE=\"color:#FFFFFF\">";
+      } else {
+        if ($vieworder=="desc") {
+          $pagetext .= "<A HREF=\"./?vieworder=asc\" STYLE=\"color:#FFFFFF\">";
+        } else {
+          $pagetext .= "<A HREF=\"./?vieworder=desc\" STYLE=\"color:#FFFFFF\">";
+        }
+      }
+      $pagetext .= "更新日</A></TH>";
+      $pagetext .= "</TR>\n";
+    }
+
+    // bgcolor変更
+    if ($viewtype == "detail") { //一覧表示
+      if ($bg_sign){
+        $tdcolor = $bg_dark;
+        $bg_sign = false;
+      } else {
+        $tdcolor = $bg_light;
+        $bg_sign = true;
+      }
+    } else { // アイコン表示
+      $tdcolor = "#FFFFFF";
+    }
+
+    //--------------------
+    // 親ディレクトリ表示
+    //--------------------
+		$c=1;
+    if (preg_match("^".eregi_replace("\/","\/",$folderpath)."\/($|\?|index)",$viewpath)) {
+      // ルート時
+      $infostr = "?path=".urlencode("/");
+      if ($viewtype=="detail") {
+        // 一覧表示
+        $pagetext .= "<TR BGCOLOR=$tdcolor>\n";
+        $pagetext .= "<TD ALIGN=CENTER WIDTH=40>";
+        $pagetext .= "<IMG SRC=\"../image/icon/root.gif\" BORDER=0 WIDTH=32 HEIGHT=32 ALT=\"ルートフォルダ\">";
+        $pagetext .= "</TD>\n";
+
+        $pagetext .= "<TD ALIGN=LEFT NOWRAP>";
+        $pagetext .= "<A HREF=\"./folders/".$infostr."\">ルートフォルダ</A>";
+        $pagetext .= "</TD>\n";
+
+        $pagetext .= "<TD VALIGN=MIDDLE ALIGN=RIGHT NOWRAP WIDTH=70>-&nbsp;</TD>\n";
+        $pagetext .= "<TD VALIGN=MIDDLE ALIGN=CENTER NOWRAP WIDTH=90>-</TD>\n";
+        $pagetext .= "</TR>\n";
+      } elseif ($viewtype=="thumbnail") {
+        // サムネイル表示 2004'05/01 added by ori
+        if ($c%$thumbnailcols==1) $pagetext .= "<TR STYLE=\"LINE-HEIGHT:130%\">";
+        $pagetext .= "<TD VALIGN=TOP ALIGN=CENTER WIDTH=".floor(100/$thumbnailcols)."% BGCOLOR=".$tdcolor.">";
+        $pagetext .= "<TABLE><TR><TD ALIGN=CENTER WIDTH=$thumbnailwidth HEIGHT=$thumbnailheight>";
+        $pagetext .= "<IMG SRC=\"../image/icon/root.gif\" BORDER=0 ALT=\"ルートフォルダ\" WIDTH=32 HEIGHT=32><BR>";
+        $pagetext .= "</TD></TR></TABLE>";
+        $pagetext .= "<A HREF=\"./folders/".$infostr."\" TARGET=\"_blank\">ルート</A>";
+        $pagetext .= "</TD>";
+        if ($c%$thumbnailcols==0) $pagetext .= "</TR>\n";
+      } else {
+        // アイコン表示
+        if ($c%$cols==1) $pagetext .= "<TR STYLE=\"LINE-HEIGHT:130%\">";
+        $pagetext .= "<TD VALIGN=TOP ALIGN=CENTER WIDTH=".floor(100/$cols)."% BGCOLOR=".$tdcolor.">";
+        $pagetext .= "<IMG SRC=\"../image/icon/root.gif\" BORDER=0 ALT=\"ルートフォルダ\" WIDTH=32 HEIGHT=32><BR>";
+        $pagetext .= "<A HREF=\"./folders/".$infostr."\" TARGET=\"_blank\">ルート</A>";
+        $pagetext .= "</TD>";
+        if ($c%$cols==0) $pagetext .= "</TR>\n";
+      }
+    } else {
+      // サブディレクトリ時
+      $linkstr = "./?relpath=".urlencode(dirname($relpath));
+      $filedate = date("m月d日 H:i",filemtime($viewpath));
+      if ($viewtype=="detail") {
+        // 一覧表示
+        $pagetext .= "<TR BGCOLOR=$tdcolor>";
+        $pagetext .= "<TD VALIGN=MIDDLE ALIGN=CENTER WIDTH=40>";
+        $pagetext .= "<A HREF=\"./".$linkstr."\"><IMG SRC=\"../image/icon/folder.up.gif\" BORDER=0 WIDTH=32 HEIGHT=32 ALT=\"一つ上へ\"></A>";
+        $pagetext .= "</TD>\n";
+        $pagetext .= "<TD ALIGN=LEFT NOWRAP>";
+        $pagetext .= "<a href=\"./".$linkstr."\">..</a>";
+        $pagetext .= " <A HREF=\"./folders/?path=".urlencode($relpath)."\" STYLE=\"color:#666699\">(info)</A>";
+        $pagetext .= "</TD>\n";
+        $pagetext .= "<TD VALIGN=MIDDLE ALIGN=RIGHT NOWRAP WIDTH=70>-&nbsp;</td>\n";
+        $pagetext .= "<TD VALIGN=MIDDLE ALIGN=CENTER NOWRAP WIDTH=90>-</td>\n";
+        $pagetext .= "</TR>\n";
+      } elseif ($viewtype=="thumbnail") {
+        // サムネイル表示 2004'05/01 added by ori
+        if ($c%$thumbnailcols==1) $pagetext .= "<TR STYLE=\"LINE-HEIGHT:130%\">";
+        $pagetext .= "<TD VALIGN=TOP ALIGN=CENTER WIDTH=".floor(100/$thumbnailcols)."% BGCOLOR=".$tdcolor.">";
+        $pagetext .= "<TABLE><TR><TD ALIGN=CENTER WIDTH=$thumbnailwidth HEIGHT=$thumbnailheight>";
+        $pagetext .= "<A HREF=\"".$linkstr."\"><IMG SRC=\"../image/icon/folder.up.gif\" BORDER=0 ALT=\"一つ上へ\" WIDTH=32 HEIGHT=32></A>";
+        $pagetext .= "</TD></TR></TABLE>";
+        $pagetext .= "<A HREF=\"".$linkstr."\">..</A>";
+        $pagetext .= "</TD>\n";
+        if ($c%$cols==0) $pagetext .= "</TR>\n";
+      } else {
+        // アイコン表示
+        if ($c%$cols==0) $pagetext .= "<TR STYLE=\"LINE-HEIGHT:130%\">\n";
+        $pagetext .= "<TD VALIGN=TOP ALIGN=CENTER WIDTH=".floor(100/$cols)."% BGCOLOR=".$tdcolor.">";
+        $pagetext .= "<A HREF=\"".$linkstr."\"><IMG SRC=\"../image/icon/folder.up.gif\" BORDER=0 ALT=\"一つ上へ\" WIDTH=32 HEIGHT=32><BR>..</A>";
+        $pagetext .= "</TD>\n";
+        if ($c%$cols==0) $pagetext .= "</TR>\n";
+      }
+    }
+
+    //------------------
+    // ディレクトリ表示
+    //------------------
+    if (sizeof($dirs)>0) {
+      reset($dirs);
+      while (list($filename,$value) = each($dirs)) { 
+
+        if (substr($relpath,-1,1)!="/") {
+          $subdirname = $relpath."/".$filename;
+          $timestamp = filemtime($viewpath."/".$filename);
+        } else {
+          $subdirname = $relpath.$filename;
+          $timestamp = filemtime($viewpath.$filename);
+        }
+        $filedate = date("m月d日 H:i",$timestamp);
+
+        $linkstr = "./?relpath=".urlencode($subdirname);
+        $infostr = "?path=".urlencode($subdirname);
+
+        // 表示チェック
+        if ($admin_sign != "t") {
+          $sql_check = "SELECT view_group_ids,view_user_ids FROM folders WHERE path='".$subdirname."'";
+          $res_check = pg_query($conn,$sql_check);
+          $cnt_check = pg_num_rows($res_check);
+          if ($cnt_check>0) {
+            $view = false;
+            $row_check = pg_fetch_array($res_check,0);
+            if ($row_check["view_group_ids"]=="" && $row_check["view_user_ids"]=="") {
+              $view = true;
+            } elseif ($row_check["view_group_ids"]!="") {
+              $view_group_id = preg_split(",",$row_check["view_group_ids"]);
+              if (sizeof($view_group_id)>0) while (list($seq,$id)=each($view_group_id)) {
+                if (sizeof($groups)>0) {
+                  reset($groups);
+                  while (list($gseq,$gid)=each($groups)) {
+                    if ($gid==$id) { $view = true; break; }
+                  }
+                }
+              }
+            } elseif ($row_check["view_user_ids"]!="") {
+              $view_user_id = preg_split(",",$row_check["view_user_ids"]);
+              if (sizeof($view_user_id)>0) while (list($seq,$id)=each($view_user_id)) {
+                if ($login_id==$id) { $view = true; break; }
+              }
+            }
+            if (!$view) continue;
+          }
+        }
+
+        $c++;
+
+        // bgcolor変更
+        if ($viewtype == "detail") {
+          // 一覧表示
+          if ($bg_sign){
+            $tdcolor = $bg_dark;
+            $bg_sign = false;
+          } else {
+            $tdcolor = $bg_light;
+            $bg_sign = true;
+          }
+        } else { // アイコン表示
+          $tdcolor = "#FFFFFF";
+        }
+
+        if ($viewtype=="detail") {
+          // 一覧表示
+          $pagetext .= "<TR BGCOLOR=".$tdcolor.">";
+          $pagetext .= "<TD ALIGN=CENTER WIDTH=40>";
+          $pagetext .= "<A HREF=\"./".$linkstr."\"><IMG SRC=\"../image/icon/folder.gif\" BORDER=0 ALT=\"名前: ".$filename."[".$viewpath."]\" WIDTH=32 HEIGHT=32></A>";
+          $pagetext .= "</TD>";
+          $pagetext .= "<TD>";
+            // 名前の長さ調整
+          if (trim($filename)!="") {
+            if (mb_strlen($filename)>60) {
+              $filename = mb_strcut($filename,0,60).".";
+            }
+          } else {
+            $filename = "未設定";
+          }
+
+          $pagetext .= "<A HREF=\"./".$linkstr."\">".$filename."</A>";
+          $pagetext .= " <A HREF=\"./folders/".$infostr."\" STYLE=\"color:#666699\">(info)</A>";
+          $pagetext .= "</TD>";
+          $pagetext .= "<TD VALIGN=MIDDLE ALIGN=RIGHT NOWRAP WIDTH=70>-&nbsp;</TD>";
+          $pagetext .= "<TD ALIGN=CENTER NOWRAP><FONT STYLE=\"font-size:80%\">";
+          if (date("Y",$timestamp)<>date("Y")) {
+            $pagetext .= date("Y/m/d",$timestamp);
+          } else {
+            $pagetext .= date("m/d",$timestamp);
+            $pagetext .= " ";
+            $pagetext .= date("H:i",$timestamp);
+          }
+          $pagetext .= "</TD>";
+          $pagetext .= "</TR>\n";
+        } elseif ($viewtype=="thumbnail") {
+          // サムネイル表示
+          if ($c%$thumbnailcols==1) $pagetext .= "<TR STYLE=\"LINE-HEIGHT:130%\">\n";
+          $pagetext .= "<TD VALIGN=TOP ALIGN=CENTER WIDTH=".floor(100/$thumbnailcols)."% BGCOLOR=".$tdcolor.">";
+	        $pagetext .= "<TABLE><TR><TD ALIGN=CENTER WIDTH=$thumbnailwidth HEIGHT=$thumbnailheight>";
+          $pagetext .= "<A HREF=\"./".$linkstr."\"><IMG SRC=\"../image/icon/folder.gif\" BORDER=0 ALT=\"名前: ".$filename."\" WIDTH=32 HEIGHT=32></A>";
+          $pagetext .= "</TD></TR></TABLE>";
+          $pagetext .= "<A HREF=\"./folders/".$infostr."\">".$filename."</A>";
+          $pagetext .= "</TD>\n";
+          if ($c%$thumbnailcols==0) $pagetext .= "</TR>\n";
+        } else {
+          // アイコン表示
+          if ($c%$cols==1) $pagetext .= "<TR STYLE=\"LINE-HEIGHT:130%\">\n";
+          $pagetext .= "<TD VALIGN=TOP ALIGN=CENTER WIDTH=".floor(100/$cols)."% BGCOLOR=".$tdcolor.">";
+          $pagetext .= "<A HREF=\"./".$linkstr."\"><IMG SRC=\"../image/icon/folder.gif\" BORDER=0 ALT=\"名前: ".$filename."\" WIDTH=32 HEIGHT=32></A><BR><A HREF=\"./folders/".$infostr."\">".$filename."</A>";
+          $pagetext .= "</TD>\n";
+          if ($c%$cols==0) $pagetext .= "</TR>\n";
+        }
+      }
+    }
+
+    //--------------
+    // ファイル表示
+    //--------------
+    if (sizeof($files)>0) {
+      // ファイルあり
+      reset($files);
+      while (list($filename,$value) = each($files)) { 
+        echo "<!--";
+        if (substr($filename,0,1)==".") {
+          $viewfilename = substr($filename,1);
+          $key = true;
+        } else {
+          $viewfilename = $filename;
+          $key = false;
+        }
+
+        if (substr($relpath,-1,1)!="/") {
+          $filepathname = $viewpath."/".$filename;
+        } else {
+          $filepathname = $viewpath.$filename;
+        }
+
+        $timestamp = filemtime($viewpath."/".$filename);
+        $tmpsize = filesize($viewpath."/".$filename);
+        if ($tmpsize<1024) {
+          $filesize = number_format($tmpsize)."Byte";
+        } elseif ($tmpsize<1024000) {
+          $filesize = number_format(ceil($tmpsize/1024))."KB";
+        } else {
+          if ($tmpsize % 1024000 == 0) {
+            $filesize = number_format(floor($tmpsize/1024000))."MB";
+          } else {
+            $filesize = number_format(floor($tmpsize/1024000)).".".str_pad(floor(($tmpsize % 1024000)/10000),2,"00",STR_PAD_LEFT)."MB";
+          }
+        }
+        $filedate = date("y/m/d H:i:s",$timestamp);
+        $imageicon = ext_check($viewfilename);
+        $linkstr = "./?path=".urlencode($relpath)."&name=".urlencode($filename);
+
+				// データ確認
+	      $sql = "SELECT seqno FROM files WHERE path='".db_textsafe($relpath)."' AND filename='".db_textsafe($filename)."'";
+	      $res = pg_query($conn,$sql);
+	      $cnt = pg_num_rows($res);
+	      if ($cnt==0) {
+	      	// データが見つからなければ仮登録
+					$seqno = get_last("files","seqno","",0)+1; // seqno採番
+					
+					$sql  = "INSERT INTO files (seqno,user_id,path,filename,createstamp,updatestamp) VALUES (";
+					$sql .= $seqno.",";
+					$sql .= "NULL,";
+					$sql .= "'".db_textsafe($relpath)."',";
+					$sql .= "'".db_textsafe($filename)."',";
+					$sql .= "'".$filedate."',";
+					$sql .= "'now'";
+					$sql .= ")";
+					$res = pg_query($conn,$sql);
+				} else {
+	        $row = pg_fetch_array($res,0);
+	        $seqno = $row["seqno"];
+				}
+				$imageno = sprintf("%09d",$seqno);
+				$thumbnailfilename = $thumbnailpath."/".$imageno.".png";
+
+        echo "-->\n";
+
+        // bgcolor変更
+        if ($viewtype == "detail") { //一覧表示
+          if ($bg_sign){
+            $tdcolor = $bg_dark;
+            $bg_sign = false;
+          } else {
+            $tdcolor = $bg_light;
+            $bg_sign = true;
+          }
+        } else { // アイコン表示
+          $tdcolor = "#FFFFFF";
+        }
+        $c++;
+        if ($viewtype=="detail") {
+          // 一覧表示
+          $pagetext .= "<TR BGCOLOR=".$tdcolor.">";
+          $pagetext .= "<TD ALIGN=CENTER WIDTH=40>";
+          if ($download_sign=="t") {
+            $pagetext .= "<A HREF=\"./download/".$linkstr."\">";
+          }
+          $pagetext .= "<IMG SRC=\"".$imageicon."\" BORDER=0 ALT=\"名前: ".$viewfilename."\nサイズ: ".$filesize."\" WIDTH=32 HEIGHT=32>";
+          if ($download_sign=="t") {
+            $pagetext .= "</A>";
+          }
+          $pagetext .= "</TD>";
+          $pagetext .= "<TD>";
+
+          if ($download_sign=="t") {
+            $pagetext .= "<A HREF=\"./download/".$linkstr."\">".$viewfilename."</A>";
+          } else {
+            $pagetext .= $viewfilename;
+          }
+          $pagetext .= " <A HREF=\"./files/".$linkstr."\" STYLE=\"color:#666699\">(info)</A>";
+
+          $pagetext .= "</TD>";
+          $pagetext .= "<TD ALIGN=RIGHT WIDTH=70><font style=\"font-size:80%\">".$filesize."&nbsp;</td>\n";
+          $pagetext .= "<TD ALIGN=CENTER NOWRAP><font style=\"font-size:80%\">";
+          if (date("Y",$timestamp)<>date("Y")) {
+            $pagetext .= date("Y/m/d",$timestamp);
+          } else {
+            $pagetext .= date("m/d",$timestamp);
+            $pagetext .= " ";
+            $pagetext .= date("H:i",$timestamp);
+          }
+          $pagetext .= "</TD>\n";
+          $pagetext .= "</tr>\n";
+        } elseif ($viewtype=="thumbnail") {
+					// サムネイルの作成:門外不出(-o-メ) 2004'05/01 added by ori 
+		      clearstatcache();
+
+					$thumbnailfilename = "";
+					if (file_exists($thumbnailpath) && file_exists($netpbmpath."/pnmscale")) {
+			      $sql = "SELECT seqno FROM files WHERE path='".$relpath."' AND filename='".$filename."'";
+			      $res = pg_query($conn,$sql);
+			      $cnt = pg_num_rows($res);
+			      if ($cnt==0) {
+			      	// データが見つからなければ仮登録
+							$seqno = get_last("files","seqno","",0)+1; // seqno採番
+						
+						$sql  = "INSERT INTO files (";
+						$sql .= "seqno,";
+						$sql .= "user_id,";
+						$sql .= "path,";
+						$sql .= "filename,";
+						if (trim($comment_db)!="") {
+							$sql .= "comment,";
+						}
+						$sql .= "pagetext,";
+						$sql .= "createstamp,";
+						$sql .= "updatestamp)";
+						$sql .= " VALUES (";
+						$sql .= $seqno.",";
+						$sql .= "'".$login_id."',";
+						$sql .= "'".$uppath."',";
+						$sql .= "'".$uploadfile_orgname."',";
+						if (trim($comment_db)!="") {
+							$sql .= "'".db_textsafe($comment_db)."',";
+						}
+						#$sql .= "'".mb_substr($pagetext_db,0,4096)." ',";
+						$sql .= "'".db_textsafe($pagetext_db)." ',";
+						$sql .= "'now',";
+						$sql .= "'now'";
+						$sql .= ")";
+						$res = pg_query($conn,$sql);
+
+			      } else {
+			        $row = pg_fetch_array($res,0);
+			        $seqno = $row["seqno"];
+							$imageno = sprintf("%09d",$seqno);
+							$thumbnailfilename = $thumbnailpath."/".$imageno.".png";
+			      }
+
+						if (!file_exists($thumbnailfilename)) {
+					    set_time_limit(6000);
+
+			        $dotpos = strrpos($filepathname,".");
+		          if ($dotpos>0) {
+		            $ext = substr($filepathname,$dotpos + 1);
+								$cmd = "";
+								if (($ext=="jpeg" || $ext=="jpg" || $ext=="jpe") && file_exists($netpbmpath."/jpegtopnm")) {
+	                $cmd = $netpbmpath."/jpegtopnm < '$filepathname' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="gif" && file_exists($netpbmpath."/giftopnm")) {
+	                $cmd = $netpbmpath."/giftopnm < '$filepathname' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="png" && file_exists($netpbmpath."/pngtopnm")) {
+	                $cmd = $netpbmpath."/pngtopnm < '$filepathname' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="bmp" && file_exists($netpbmpath."/bmptoppm")) {
+	                $cmd = $netpbmpath."/bmptoppm < '$filepathname' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="rle" && file_exists($netpbmpath."/rletopnm")) {
+	                $cmd = $netpbmpath."/rletopnm < '$filepathname' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="pcx" && file_exists($netpbmpath."/pcxtoppm")) {
+	                $cmd = $netpbmpath."/pcxtoppm < '$filepathname' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif (($ext=="pict" || $ext=="pct" || $ext=="pic") && file_exists($netpbmpath."/pictoppm")) {
+	                $cmd = $netpbmpath."/picttoppm < '$filepathname' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="tga" && file_exists($netpbmpath."/tgatoppm")) {
+	                $cmd = $netpbmpath."/tgatoppm < '$filepathname' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="ico" && file_exists($netpbmpath."/winicontoppm")) {
+	                $cmd = $netpbmpath."/winicontoppm < '$filepathname' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="iff" && file_exists($netpbmpath."/ilbmtoppm")) {
+	                $cmd = $netpbmpath."/ilbmtoppm < '$filepathname' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif (($ext=="tiff" || $ext=="tif") && file_exists($netpbmpath."tifftopnm")) {
+	                $cmd = $netpbmpath."/tifftopnm < '$filepathname' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="raw" && file_exists($netpbmpath."/rawtoppm")) {
+	                $cmd = $netpbmpath."/rawtoppm < '$filepathname' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="tga" && file_exists($netpbmpath."/tgatoppm")) {
+	                $cmd = $netpbmpath."/tgatoppm < '$filepathname' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="xpm" && file_exists($netpbmpath."/xpmtoppm")) {
+	                $cmd = $netpbmpath."/xpmtoppm < '$filepathname' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              }
+	              if ($cmd != "") $ret = exec($cmd);
+					      clearstatcache();
+								if (file_exists($thumbnailfilename) && filesize($thumbnailfilename)==0) {
+									unlink($thumbnailfilename);
+								}
+		          }
+						}
+					}
+
+          if ($c%$thumbnailcols==1) $pagetext .= "<TR STYLE=\"LINE-HEIGHT:130%\">\n";
+          $pagetext .= "<TD VALIGN=TOP ALIGN=CENTER WIDTH=".floor(100/$thumbnailcols)."% HEIGHT=".$thumbnailheight." BGCOLOR=".$tdcolor.">";
+	        $pagetext .= "<TABLE><TR><TD ALIGN=CENTER WIDTH=$thumbnailwidth HEIGHT=$thumbnailheight>";
+          if ($download_sign=="t") {
+            $pagetext .= "<A HREF=\"./download/".$linkstr."\">";
+          }
+          if (!file_exists($thumbnailfilename)) {
+	          $pagetext .= "<IMG SRC=\"".$imageicon."\" BORDER=0 ALT=\"名前: ".$viewfilename."\nサイズ: ".$filesize."\" WIDTH=32 HEIGHT=32></A>";
+					} else {
+	          $pagetext .= "<IMG SRC=\"./thumbnail.phtml?s=".$seqno."\" BORDER=0 ALT=\"名前: ".$viewfilename."\nサイズ: ".$filesize."\"></A>";
+					}
+          $pagetext .= "</TD></TR></TABLE>";
+          $pagetext .= "<A HREF=\"./files/".$linkstr."\">".$viewfilename."</A>";
+          $pagetext .= "</TD>\n";
+          if ($c%$thumbnailcols==0) $pagetext .= "</TR>\n";
+        } elseif ($viewtype=="thumbnail") {
+          // サムネイル表示 2004'05/01 added by ori
+          if ($c%$thumbnailcols==1) $pagetext .= "<TR STYLE=\"LINE-HEIGHT:130%\">\n";
+          $pagetext .= "<TD VALIGN=TOP ALIGN=CENTER WIDTH=".floor(100/$thumbnailcols)."% BGCOLOR=".$tdcolor.">";
+          if ($download_sign=="t") {
+            $pagetext .= "<A HREF=\"./download/".$linkstr."\">";
+          }
+          $pagetext .= "<IMG SRC=\"".$imageicon."\" BORDER=0 ALT=\"名前: ".$viewfilename."\nサイズ: ".$filesize."\" WIDTH=32 HEIGHT=32></A><BR><A HREF=\"./files/".$linkstr."\">".$viewfilename."</A>";
+          $pagetext .= "</TD>\n";
+          if ($c%$thumbnailcols==0) $pagetext .= "</TR>\n";
+        } else {
+          // アイコン表示
+          if ($c%$cols==1) $pagetext .= "<TR STYLE=\"LINE-HEIGHT:130%\">\n";
+          $pagetext .= "<TD VALIGN=TOP ALIGN=CENTER WIDTH=".floor(100/$cols)."% BGCOLOR=".$tdcolor.">";
+          if ($download_sign=="t") {
+            $pagetext .= "<A HREF=\"./download/".$linkstr."\">";
+          }
+          $pagetext .= "<IMG SRC=\"".$imageicon."\" BORDER=0 ALT=\"名前: ".$viewfilename."\nサイズ: ".$filesize."\" WIDTH=32 HEIGHT=32></A><BR><A HREF=\"./files/".$linkstr."\">".$viewfilename."</A>";
+          $pagetext .= "</TD>\n";
+          if ($c%$cols==0) $pagetext .= "</TR>\n";
+        }
+      }
+    }
+
+    // TABLE空欄穴埋め
+    if ($viewtype == "thumbnail") {
+      if ($c % $thumbnailcols <> 0) {
+        for ($i=1;$i<=$thumbnailcols - $c % $thumbnailcols;$i++) {
+          $pagetext .= "<TD WIDTH=".floor(100/$thumbnailcols)."% BGCOLOR=".$tdcolor.">&nbsp;</TD>\n";
+        }
+        $pagetext .= "</TR>\n";
+      }
+    }
+    if ($viewtype == "icon") {
+      if ($c % $cols <> 0) {
+        for ($i=1;$i<=$cols - $c % $cols;$i++) {
+          $pagetext .= "<TD WIDTH=".floor(100/$cols)."% BGCOLOR=".$tdcolor.">&nbsp;</TD>\n";
+        }
+        $pagetext .= "</TR>\n";
+      }
+    }
+
+    // ファイルなし
+    if (sizeof($files)<1) {
+      if ($viewtype=="detail") { //一覧表示
+        if ($bg_sign){
+          $tdcolor = $bg_dark;
+          $bg_sign = false;
+        } else {
+          $tdcolor = $bg_light;
+          $bg_sign = true;
+        }
+        $pagetext .= "<TR BGCOLOR=$tdcolor HEIGHT=36>\n";
+        $pagetext .= "<TD COLSPAN=4 ALIGN=CENTER>ファイル未登録</TD>\n";
+        $pagetext .= "</TR>\n";
+      } else {
+#        $pagetext .= "<TR BGCOLOR=#FFFFFF HEIGHT=36>\n";
+#        $pagetext .= "<TD COLSPAN=6 ALIGN=CENTER>ファイル未登録</TD>\n";
+#        $pagetext .= "</TR>\n";
+      }
+    }
+
+    $pagetext .= "</TABLE>\n";
+    if ($viewtype=="icon" || $viewtype == "thumbnail") $pagetext .= "</TD></TR></TABLE>\n";
+    $pagetext .= "<BR>\n";
+  }
+
+  // 明細表示
+  include "../detail.inc.php";
+
+  // フッタ表示
+  include "../footer.inc.php";
+?>

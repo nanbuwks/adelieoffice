@@ -1,0 +1,194 @@
+<?php
+	include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+	include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+	$pagetitle = "回覧作成";
+	include ("../../header.inc.php");
+
+	// エラー判定
+	if ($login) {
+		// 文字整形
+		if (!empty($_REQUEST["subject"])) $subject = sjis2euc($_REQUEST["subject"]);
+		if (!empty($_REQUEST["body"]))    $body    = sjis2euc($_REQUEST["body"]);
+
+		if ($to==""){
+			$MES[] = "送信先の相手を選択して下さい";
+		} else {
+			// $tousers で users のid取得
+			$tos = preg_split(",",$to);
+			$to = "";
+			for($i=0;$i<sizeof($tos);$i++) {
+				if ($tos[$i]!="") {
+					$sql = "SELECT id FROM users where id='".$tos[$i]."'";
+					$res = pg_query($conn,$sql);
+					if (pg_num_rows($res) == 0){
+						$MES[] = "送信先が正しくありません";
+						break;
+					}
+					if ($to!="") $to .= ",";
+					$to .= $tos[$i];
+				}
+			}
+		}
+		if (sizeof($to)=="") {
+			$MES[] = "送信先が指定されていません";
+		}
+
+		if (sizeof($MES)==0) {
+			// DB更新(1) 回覧登録
+			$seqno = get_last("circulas","seqno","",0)+1; // seqno採番
+
+			$sql  = "INSERT INTO circulas (";
+			$sql .= "seqno,user_id,user_id_to,subject,body,result_sign,createstamp,updatestamp";
+			$sql .= ") VALUES (";
+			$sql .= $seqno.",";
+			$sql .= "'".$login_id."',";
+			$sql .= "'".$to."',";
+			$sql .= "'".db_textsafe($subject)."',";
+			$sql .= "'".db_textsafe($body)."',";
+			$sql .= "'f',";
+			$sql .= "'now','now'";
+			$sql .= ")";
+			$res = pg_query($conn,$sql);
+			$cnt = pg_affected_rows($res);
+			if ($cnt==0) {
+				$MES[] = "登録に失敗しました";
+			}
+
+			if (sizeof($MES)==0) {
+				// 閲覧ログの生成
+				$sql = "INSERT INTO circulas_res (seqno,user_id,createstamp) VALUES ($seqno,'$login_id','now')";
+				pg_query($conn,$sql);
+			}
+		}
+
+		if (sizeof($MES)==0) {
+			// メール本文の作成
+			$mailtext = mail_textsafe($subject)."\n".mail_textsafe($body);
+
+			// Subjectの作成
+			$login_ryaku = get_first("users","name_ryaku","id='$login_id'","");
+
+			$mailsubject  = "回覧:".date("m/d");
+			$mailsubject .= "(";
+			$mailsubject .= $wname[date("w")];
+			$mailsubject .= ") ";
+			$mailsubject .= date("H:i");
+
+			// 本文に発信人を
+			$mailtext = "発信者:".$login_ryaku."\n------------------\n".$mailtext;
+
+			// 発信者アドレスのセット
+			$sql = "SELECT * FROM users WHERE id='".$login_id."';";
+			$res = pg_query($conn, $sql);
+			if (pg_num_rows($res)>0) {
+				$row = pg_fetch_array($res,0);
+				if ($send == 2 && trim($row["email_sub"]) != "") {
+					$mailfrom = $row["email_sub"];
+				} else {
+					$mailfrom = $row["email"];
+				}
+			}
+
+			$tos = preg_split(",",$to);
+			for($i=0;$i<sizeof($tos);$i++) {
+				if ($tos[$i]!="") {
+					$sql = "SELECT * FROM users WHERE id='".$tos[$i]."';";
+					$res = pg_query($conn, $sql);
+					if (pg_num_rows($res)>0) {
+						$row = pg_fetch_array($res,0);
+
+						// シリアル値確認
+						$onetime_passwd = $row["onetime_passwd"];
+						if (trim($onetime_passwd)=="") {
+							$onetime_passwd = make_serial(12);
+							$sql_update = "UPDATE users SET onetime_passwd='".$onetime_passwd."' WHERE id='".$tos[$i]."'";
+							$res_update = pg_query($conn,$sql_update);
+						}
+
+						$mailaddr = "";
+						if ($send==2 && trim($row["email_sub"]) != "") {
+							// 携帯アドレスへ送信時
+							$mailaddr = trim($row["email_sub"]);
+
+							$mailtext_a = "";
+							$strlen = 0;
+							if (preg_match("@docomo\.ne\.jp$",$mailaddr)) {
+								# Docomo 500字(-90字[リンク分])まで
+								$maxlen = 500-90;
+							} elseif (preg_match("@jp\-.\.ne\.jp$",$mailaddr) || preg_match("@..\.vodafone\.ne\.jp$",$mailaddr)) {
+								# J-SKY 384字(-90字[リンク分])まで
+								$maxlen = 384-90;
+							} elseif (preg_match("@ezweb\.ne\.jp$",$mailaddr) || preg_match("@.*\.ezweb\.ne\.jp$",$mailaddr) || preg_match("@ez.*\.ido\.ne\.jp$",$mailaddr)) {
+								# EZWeb 2000字(-90字[リンク分])まで
+								$maxlen = 2000-90;
+							} else {
+								$maxlen = 10000;
+							}
+							for ($l=0;$l<mbstrlen($mailtext);$l++) {
+								$checktext = mbsubstr($mailtext,$l,1);
+								if ($checktext != "\r") {
+									if (strlen($checktext)==1) {
+										 $strlen = $strlen+1.1;
+									} else {
+										 $strlen = $strlen+2;
+									}
+									if ($strlen>=$maxlen) {
+										 break;
+									}
+									$mailtext_a .= $checktext;
+								}
+							}
+
+							if (preg_match("@docomo\.ne\.jp$",$mailaddr) || preg_match("@jp\-.\.ne\.jp$",$mailaddr)  || preg_match("@..\.vodafone\.ne\.jp$",$mailaddr) || preg_match("@ezweb\.ne\.jp$",$mailaddr) || preg_match("@.*\.ezweb\.ne\.jp$",$mailaddr) || preg_match("@ez.*\.ido\.ne\.jp$",$mailaddr)) { // Docomo or J-PHONE or EZWeb
+								$mailtext_a .= "\n--\n";
+								$mailtext_a .= "メモの確認⇒"."http://".$domain."/i/cir/view.phtml?sn=".$onetime_passwd."&s=".$seqno;
+							}
+
+							mail($mailaddr,
+										mb_encode_mimeheader(euc2jis($mailsubject),"ISO-2022-JP"),
+										euc2jis($mailtext_a),
+										"From:".$mailfrom."\nX-Mailer: AdelieAgent");
+						}
+						if ($send==1 || ($send==2 && trim($row["email"])=="") && trim($row["email"]) != "") {
+							// 一般アドレスへ送信時
+							$mailaddr = $row["email"];
+
+							$mailtext_a  = $mailtext;
+							$mailtext_a .= "\n---\n";
+							$mailtext_a .= "回覧の確認⇒"."https://".$domain."/circulas/?mode=dlogin&sn=".$onetime_passwd."&n=".$seqno;
+
+							mail ($mailaddr,
+										mb_encode_mimeheader(euc2jis($mailsubject),"ISO-2022-JP"),
+										euc2jis($mailtext_a),
+										"From:".$mailfrom."\nX-Mailer: AdelieAgent");
+						}
+					}
+				}
+			}
+		}
+
+		if (sizeof($MES) > 0) {
+			// エラーメッセージ出力
+			$txt.= "<FONT color=#FF0000>";
+			while (list($key,$val)=each($MES)) {
+				$txt.= $val."<br>";
+			}
+			$txt.= "</FONT>";
+		} else {
+			// 正常時
+			$txt.= "<FORM ACTION=\"../\" METHOD=POST>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+
+			$txt.= "<CENTER><BR>";
+			$txt.= "登録完了";
+			if ($send!=0) $txt.= "&emojimail;";
+			$txt.= "<BR><BR>\n";
+			$txt.= "<INPUT TYPE=SUBMIT VALUE=\"一覧へ\">";
+			$txt.= "</CENTER>\n";
+			$txt.= "</FORM>\n";
+		}
+	}
+
+	include ("../../footer.inc.php");
+?>

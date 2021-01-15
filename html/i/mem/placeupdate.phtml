@@ -1,0 +1,74 @@
+<?php
+	include ("../../config.inc.php"); include ("../../lib.inc.php");
+	include ("../agent.inc.php"); include ("../emoji.inc.php");
+	$pagetitle = "行き先登録";
+	include ("../header.inc.php");
+
+	if ($login && sizeof($MES)==0) {
+		// 前処理
+		$text = textsafe(sjis2euc($text));
+
+		// エラーチェック
+		if (empty($code) || trim($code)=="") {
+			$MES[] = "行き先が選択されていません";
+		} else {
+			if ($code=="0" && trim($text)=="") {
+				$MES[] = "行き先が入力されていません";
+			} elseif ($code!="0") {
+				if ($code != "-1") {
+					$text = get_first("locations","name","id='".$code."'","");
+				}
+				if ($text=="") {
+					$MES[] = "行き先が正しく選択されていません";
+				}
+			}
+		}
+		// 更新処理
+		// ※ ロギングしてるのでうまく使えば工程管理の実績収集なんかにつかえるかも
+		if (sizeof($MES)==0) {
+			$sql  = "DELETE FROM users_location WHERE updatestamp+'".(24*60).":00'<now()";
+			pg_query($conn,$sql); // 60日間以前のログを削除
+
+			$seqno = get_last("users_location","seqno","user_id='".$login_id."'",0)+1;
+
+			$sql  = "INSERT INTO users_location (seqno,user_id,code,text,updatestamp) VALUES (";
+			$sql .=     $seqno.",";
+			$sql .= "'".$login_id."',";
+			$sql .= "'".$code."',";
+			$sql .= "'".db_textsafe($text)."',";
+			$sql .= "'now'";
+			$sql .= ")";
+			$res = pg_query($conn,$sql);
+			if ($res != false) {
+				$cnt = pg_affected_rows($res);
+			} else {
+				$cnt = 0;
+			}
+			if ($cnt==0) $MES[] = "更新処理に失敗しました";
+		}
+
+		if (sizeof($MES)>0) {
+			// エラー
+			$txt.= "<FORM ACTION=\"./placeedit.phtml\" METHOD=POST>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=$ms>";
+			$txt.= "<BR><FONT COLOR=#FF0000>";
+			while (list($key,$val)=each($MES)) {
+				$txt.= "".$val."<BR>";
+			}
+			$txt.= "</FONT>\n";
+			$txt.= "<CENTER><INPUT TYPE=submit VALUE=戻る></CENTER><br>";
+			$txt.= "</FORM>\n";
+		} else {
+			// 正常時処理
+			$txt.= "<FORM ACTION=\"./\" METHOD=GET>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=$ms>";
+			$txt.= "<BR><CENTER>";
+			$txt.= "&emojishadow;登録完了<BR>";
+			$txt.= "<BR>";
+			$txt.= "<INPUT TYPE=SUBMIT VALUE=\"戻る\">";
+			$txt.= "</CENTER>\n";
+			$txt.= "</FORM>\n";
+		}
+	}
+	include "../footer.inc.php"; // フッタ表示
+?>

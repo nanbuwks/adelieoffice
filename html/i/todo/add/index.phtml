@@ -1,0 +1,128 @@
+<?php
+  include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+  include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+  $pagetitle = "備忘録の作成";
+  include ("../../header.inc.php");
+
+  // エラーチェック
+  if ($login == false) {
+    $MES[] = "先に、ログインしてください ⇒ <A HREF=\"".$toppath."/\">ログインページへ</A>";
+  } else {
+    if (trim($login_id) == "") {
+      $MES[] = "ユーザーIDが正しくありません";
+    } else {
+      $sql = "SELECT * FROM users WHERE id='".$login_id."'";
+      $txt.= "<!--";
+      $res = pg_query($conn, $sql);
+
+      if (pg_num_rows($res) < 1) {
+        $MES[] = "ユーザーIDが正しくありません".$sql;
+      } else {
+        $row = pg_fetch_array($res,0);
+      }
+      $txt.= "-->\n";
+    }
+  }
+
+  if ($back=="t") {
+    if (!empty($s)) { $type = "edit"; } else { $type = "new"; }
+    if(!empty($subject)) {
+      $subject = remove_emoji(textsafe(sjis2euc($subject)));
+      $subject = mb_convert_kana($subject,"aK","EUC-JP");
+    }
+    if(!empty($body)) {
+      $body = remove_emoji(textsafe(sjis2euc($body)));
+      $body = mb_convert_kana($body,"aK","EUC-JP");
+    }
+  } elseif (!empty($s) and $s>0){
+    $sql = "SELECT * FROM todos WHERE user_id='$login_id' and seqno=$s";
+    $res = pg_query($conn,$sql);
+    $row = pg_fetch_array($res,0);
+    $subject  = mb_convert_kana($row["subject"],"ak","EUC-JP");
+    $body     = mb_convert_kana($row["body"],"ak","EUC-JP");
+    $priority = $row["priority"];
+  } else {
+    $s = 0; // 新規時
+  }
+
+  if (sizeof($MES)>0) {
+    // エラーメッセージ出力
+    $txt.= "<FONT COLOR=#FF0000>";
+    while (list($key,$val)=each($MES)) {
+      $txt.= "".$val."<BR>";
+    }
+    $txt.= "</FONT>";
+
+  } else {
+    // 正常時
+    $txt.= "<FORM ACTION=\"./add.phtml$serial\" METHOD=POST>";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"dummy\" VALUE=\"ShiftJISコードで記述されています\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"s\" VALUE=\"$s\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"$p\">";
+
+    ## タイトル
+    $txt.= "タイトル:<BR>";
+    if($agenttype=="jsky") {
+      $txt.= "<TEXTAREA NAME=\"subject\" COLS=\".$charW*2 .\" ROWS=1";
+      echo_mode("hiragana");
+      $txt.= ">$subject</TEXTAREA>";
+    } else {
+      $txt.= "<INPUT TYPE=TEXT NAME=\"subject\" VALUE=\"$subject\" ";
+      echo_mode("hiragana");
+      $txt.= ">";
+    }
+
+    ## 優先度
+    $txt.= "<BR>";
+    $txt.= "優先度:<BR>";
+    for ($i=3;$i>0;$i=$i-1) {
+      $txt.= "<INPUT TYPE=RADIO NAME=\"priority\" VALUE=\"".$i."\"";
+      if ($row["priority"]==$i || $priority==$i) {
+        $txt.= " CHECKED";
+      }
+      if ((empty($row["priority"]) or empty($priority)) and $i == 3){
+        $txt.= " CHECKED";
+      }
+      $txt.= ">";
+      $txt.= "".$priority_name[$i-1]."<BR>\n";
+    }
+
+    ## メモ内容
+    $txt.= "メモ内容:<BR>";
+    if (strlen($body)>512) {
+      $txt.= "<FONT COLOR=#FF0000>文字数オーバー:表示のみ</FONT><BR>";
+      $txt.= "<hr size=\"0\">";
+      $txt.= str_cut(str_wiki($body),1500);
+      $txt.= "<BR>";
+    } else {
+      $txt.= "<TEXTAREA NAME=\"body\" COLS=\".$charW*2 .\" ROWS=3";
+      echo_mode("hiragana");
+      $txt.= ">";
+      $txt.= $body;
+      $txt.= "</TEXTAREA>";
+      $txt.= "<BR>";
+    }
+
+    if (empty($s)) {
+      $txt.= "<CENTER><INPUT TYPE=SUBMIT VALUE=\"メモの登録\"></CENTER>";
+    } else {
+      if (strlen($row["note"])<=250) {
+        $txt.= "<CENTER><INPUT TYPE=SUBMIT VALUE=\"メモの更新\"></CENTER>";
+      }
+    }
+    $txt.= "</FORM>";
+
+    if (!empty($s)) {
+      $txt.= "<FORM ACTION=\"../del/$serial\" METHOD=POST>";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=\"s\" VALUE=\"$s\">";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"$p\">";
+      $txt.= "<CENTER><INPUT TYPE=SUBMIT VALUE=\"削除\"></CENTER>";
+      $txt.= "</FORM><BR>";
+    }
+  }
+
+  include "../../footer.inc.php";
+?>

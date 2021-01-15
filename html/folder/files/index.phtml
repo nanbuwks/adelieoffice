@@ -1,0 +1,235 @@
+<?php
+  // ヘッダ読み込み
+  include "../../config.inc.php";
+  include "../../lib.inc.php";
+
+  // パラメーターセット
+  $path = stripslashes(urldecode($_REQUEST["path"]));
+  $name = stripslashes(urldecode($_REQUEST["name"]));
+
+  if ($path=="" || $name=="") {
+    header("Location: http://".$domain."/folder/");
+    exit;
+  }
+
+  // リンク用テキストの設定
+  $linktext  = "<A HREF=\"../../\" CLASS=\"BAR\">トップページ</A> &gt; ";
+  $linktext .= "<A HREF=\"../\" CLASS=\"BAR\">Webフォルダ</A> &gt; ";
+  $linktext .= "<FONT COLOR=#FFFF00>ファイル情報</FONT> ";
+
+  // 検索機能の使用?
+  $search    = true;
+  $searchuri = "/folder/search/";
+
+  // ヘッダ表示
+  include "../../header.inc.php";
+  flush();
+
+  if ($login && sizeof($MES)==0) {
+    echo "<!--";
+    // ダウンロード情報確認
+    $sql = "SELECT * FROM users WHERE id='".$login_id."'";
+    $res = pg_query($conn,$sql);
+    $cnt = pg_num_rows($res);
+    if ($cnt==1) {
+      $row = pg_fetch_array($res,0);
+      $download_sign = $row["download_sign"];
+    }
+    $pagetext  = "";
+    $pagetext .= "<BR><CENTER>";
+
+    // 存在チェック
+    $viewpath     = $folderpath.$path;
+    if (substr($name,0,1)==".") {
+      $name_org = substr($name,1);
+      $key = true;
+    } else {
+      $name_org = $name;
+      $key = false;
+    }
+    $filename_check = $viewpath."/".$name;
+    $filename       = $viewpath."/".$name_org;
+    if (!file_exists($filename_check)) {
+      $DMES[] = "指定されたファイルが見つからないか既に削除されています";
+    }
+
+    if (sizeof($DMES) > 0) {
+      // エラー時
+      $pagetext .= "<CENTER><FONT COLOR=#FF0000><B>";
+      while (list($key,$val)=each($DMES)) $pagetext .= $val."<BR>";
+      $pagetext .= "</TD></TR></TABLE></TD></TR></TABLE>";
+    } else {
+      // 通常
+      if (date("Y")==date("Y",filemtime($folderpath.$path."/".$name))) {
+        $filedate = date("m月d日 H:i",filemtime($folderpath.$path."/".$name));
+      } else {
+        $filedate = date("Y年m月d日 H:i",filemtime($folderpath.$path."/".$name));
+      }
+      $tmpsize = filesize($folderpath.$path."/".$name);
+      if ($tmpsize<1024) {
+        $filesize = number_format($tmpsize)."Byte";
+      } elseif ($tmpsize<1024000) {
+        $filesize = number_format(floor($tmpsize/1024)).".".str_pad(floor(($tmpsize % 1024)/10),1,"0",STR_PAD_LEFT)."KB";
+      } else {
+        if ($tmpsize % 1024000 == 0) {
+          $filesize = number_format(floor($tmpsize/1024000))."MB";
+        } else {
+          $filesize = number_format(floor($tmpsize/1024000)).".".str_pad(floor(($tmpsize % 1024000)/10000),2,"00",STR_PAD_LEFT)."MB";
+        }
+      }
+
+      // DBからファイル情報取得
+      $fileupdate = "";
+      $sql = "SELECT * FROM files WHERE path='".$path."' AND filename='".$name."'";
+      $res = pg_query($conn,$sql);
+      $cnt = pg_num_rows($res);
+      if ($cnt==0) {
+        $user_id = "";
+        $user_name = "不明";
+        $comment = "&nbsp;";
+      } else {
+        $row = pg_fetch_array($res,0);
+        $user_id = $row["user_id"];
+
+        $user_name = get_first("users","name_ryaku","id='".$user_id."'","不明");
+        $comment  = $row["comment"];
+        $filetext = $row["pagetext"];
+        if ($row["updatestamp"]>0) {
+          $fileupdate = date("m月d日 H:i",datetime2timestamp($row["updatestamp"]));
+        }
+        if (trim($comment)=="") $comment = "<FONT COLOR=#777755>未入力";
+      }
+
+      $pagetext .= "<TABLE WIDTH=480><TR><TD><FONT COLOR=#555555>作成者 : ";
+      if (!empty($user_id)) {
+        $pagetext .= "<A HREF=\"../../member/?id=".$user_id."\">".$user_name."<IMG SRC=\"../../image/clip.gif\" BORDER=0 WIDTH=10 HEIGHT=11 ALIGN=ABSMIDDLE></A>";
+      } else {
+        $pagetext .= $user_name;
+      }
+      $pagetext .= "</TD></TR></TABLE>\n";
+
+      $pagetext .= "
+<TABLE BORDER=0 CELLPADDING=4 CELLSPACING=1 width=480 BGCOLOR=#999999><TR>
+<TD ALIGN=RIGHT WIDTH=90 NOWRAP VALIGN=TOP BGCOLOR=$td_back_left>ファイル名</TD>
+<TD ALIGN=LEFT BGCOLOR=$td_back>";
+      $pagetext .= "<TABLE BORDER=0 CELLPADDING=0 CELLSPACING=2><TR><TD>";
+      $downlink = "?path=".urlencode($path)."&name=".urlencode($name);
+      if ($download_sign=='t') {
+        if (!$key) {
+          $pagetext .= "<A HREF=\"../download/".$downlink."\">";
+        } else {
+          $pagetext .= "<A HREF=\"../download/key.phtml".$downlink."\">";
+        }
+      }
+
+			$imageno = sprintf("%09d",$row["seqno"]);
+			$thumbnailfilename = $thumbnailpath."/".$imageno.".png";
+
+      if (!file_exists($thumbnailfilename)) {
+	      $imageicon = ext_check($name_org);
+	      $pagetext .= "<img src=\"".$imageicon."\" border=0 ALT=\"ファイル名: ".$name_org." \nサイズ : ".$filesize." \n更新日: ".$filedate."\" WIDTH=32 HEIGHT=32>";
+			} else {
+        $pagetext .= "<IMG SRC=\"../thumbnail.phtml?s=".$row["seqno"]."\" BORDER=0 STYLE=\"border:1px solid gray;\" ALT=\"ファイル名: ".$name_org." \nサイズ : ".$filesize." \n更新日: ".$filedate."\"></A>";
+			}
+      if ($download_sign=='t') {
+        $pagetext .= "</A>";
+      }
+      $pagetext .= "</TD><TD>";
+      $pagetext .= $name_org."</TD></TR></TABLE>\n";
+      $pagetext .= "</TD>\n";
+      $pagetext .= "</TR>\n";
+
+      $pagetext .= "
+<TR>
+<TD ALIGN=RIGHT WIDTH=90 NOWRAP VALIGN=TOP BGCOLOR=$td_back_left>フォルダ</TD>
+<TD ALIGN=LEFT BGCOLOR=$td_back STYLE=\"LINE-HEIGHT:15pt\"><TABLE BORDER=0 CELLPADDING=0 CELLSPACING=0><TR><TD><A HREF=\"../?relpath=".urlencode($path)."\"><IMG SRC=\"../../image/icon/folder.gif\" BORDER=0 ALT=\"フォルダ名 : ".$path."  \n作成日 : ".$folderdate."\" WIDTH=32 HEIGHT=32></A></TD><TD>&nbsp;</TD><TD>$path</TD></TR></TABLE></TD>
+</TR>
+
+<TR>
+<TD ALIGN=RIGHT WIDTH=90 NOWRAP VALIGN=TOP BGCOLOR=$td_back_left>サイズ</TD>
+<TD ALIGN=LEFT BGCOLOR=$td_back>$filesize</TD>
+</TR>
+";
+      ## コメント
+      $pagetext .= "<TR>\n";
+      $pagetext .= "<TD ALIGN=RIGHT WIDTH=90 NOWRAP VALIGN=TOP BGCOLOR=$td_back_left>コメント</TD>\n";
+      $pagetext .= "<TD ALIGN=LEFT BGCOLOR=$td_back>";
+      $pagetext .= preg_replace("/\r\n|\r|\n/i","<BR>",$comment);
+      $pagetext .= "</TD>\n";
+      $pagetext .= "</TR>\n";
+
+      if (trim($filetext) != "") {
+        // 抽出テキスト処理
+        str_replace("<","&lt;",$filetext);
+        str_replace(">","&gt;",$filetext);
+        $filetext = strip_tags(str_cut($filetext,1024));
+
+        $pagetext .= "<TR>\n";
+        $pagetext .= "<TD ALIGN=RIGHT WIDTH=90 NOWRAP VALIGN=TOP BGCOLOR=$td_back_left STYLE=\"LINE-HEIGHT:15pt\">抽出テキスト</TD>\n";
+        $pagetext .= "<TD ALIGN=LEFT BGCOLOR=$td_back>$filetext</TD>";
+        $pagetext .= "</TR>\n";
+      }
+
+      $pagetext .= "</TABLE>";
+
+      if ($fileupdate!="") {
+        $pagetext .= "<TABLE WIDTH=480><TR><TD ALIGN=RIGHT><FONT COLOR=#555555>最終更新日時 : $fileupdate</TD></TR></TABLE>\n";
+      } elseif($filedate!="") {
+        $pagetext .= "<TABLE WIDTH=480><TR><TD ALIGN=RIGHT><FONT COLOR=#555555>最終更新日時 : $filedate</TD></TR></TABLE>\n";
+      }
+
+      $pagetext .= "<BR></FORM>\n";
+
+      $pagetext .= "<TABLE BORDER=0 CELLPADDING=2 CELLSPACING=0><TR>";
+      if ($admin_sign=='t' || $download_sign=='t') {
+        // ダウンロードボタン
+        $pagetext .= "<FORM ACTION=\"/folder/download/\" METHOD=POST>";
+        $pagetext .= "<TD ALIGN=CENTER>";
+        $pagetext .= "<INPUT TYPE=HIDDEN NAME=\"path\" VALUE=\"".urlencode($path)."\">";
+        $pagetext .= "<INPUT TYPE=HIDDEN NAME=\"name\" VALUE=\"".urlencode($name)."\">";
+        $pagetext .= "<INPUT TYPE=SUBMIT VALUE=\"ダウンロード\">";
+        $pagetext .= "</TD>";
+        $pagetext .= "</FORM>";
+      }
+
+      if ($admin_sign=='t' || ($download_sign='t' AND $user_id==$login_id)) {
+        $pagetext .= "<FORM ACTION=\"./delete.phtml\" METHOD=POST ONSUBMIT=\"return(confirm('このファイルを削除しますか？\\n注:一度削除されたファイルは元に戻すことはできません'))\">";
+        $pagetext .= "<TD ALIGN=CENTER>";
+        $pagetext .= "<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"".$p."\">";
+        $pagetext .= "<INPUT TYPE=HIDDEN NAME=\"path\" VALUE=\"".urlencode($path)."\">";
+        $pagetext .= "<INPUT TYPE=HIDDEN NAME=\"name\" VALUE=\"".urlencode($name)."\">";
+        $pagetext .= "<INPUT TYPE=SUBMIT VALUE=\"ファイルの削除\">";
+        $pagetext .= "</TD>";
+        $pagetext .= "</FORM>";
+      }
+      if ($admin_sign=='t' || ($download_sign='t' AND $user_id==$login_id)) {
+        $pagetext .= "<FORM ACTION=\"./rename.phtml\" METHOD=POST>";
+        $pagetext .= "<TD ALIGN=CENTER>";
+        $pagetext .= "<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"".$p."\">";
+        $pagetext .= "<INPUT TYPE=HIDDEN NAME=\"path\" VALUE=\"".urlencode($path)."\">";
+        $pagetext .= "<INPUT TYPE=HIDDEN NAME=\"name\" VALUE=\"".urlencode($name)."\">";
+        $pagetext .= "<INPUT TYPE=SUBMIT VALUE=\"ファイル名の変更\">";
+        $pagetext .= "</TD>";
+        $pagetext .= "</FORM>";
+      }
+      if ($admin_sign=='t') {
+        $pagetext .= "<FORM ACTION=\"./select.phtml\" METHOD=POST>";
+        $pagetext .= "<TD ALIGN=CENTER>";
+        $pagetext .= "<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"".$p."\">";
+        $pagetext .= "<INPUT TYPE=HIDDEN NAME=\"path\" VALUE=\"".urlencode($path)."\">";
+        $pagetext .= "<INPUT TYPE=HIDDEN NAME=\"name\" VALUE=\"".urlencode($name)."\">";
+        $pagetext .= "<INPUT TYPE=SUBMIT VALUE=\"ファイルの移動\">";
+        $pagetext .= "</TD>";
+        $pagetext .= "</FORM>";
+      }
+      $pagetext .= "</TR></TABLE>";
+      $pagetext .= "</CENTER>";
+    }
+    echo "-->";
+  }
+  // 明細表示
+  include "../../detail.inc.php";
+
+  // フッタ表示
+  include "../../footer.inc.php";
+?>

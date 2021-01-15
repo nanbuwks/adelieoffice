@@ -1,0 +1,419 @@
+<?php
+	include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+	include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+	$pagetitle = "予定表 共有者選択";
+
+	include ("../../header.inc.php");
+
+	if ($login) {
+		## 変数設定
+		$txt = "";
+		$maxrow = 10;
+
+		$MES = array();
+		$id_tos = array();
+		$u = array();
+
+		$oldgrp = "";
+		$id_to = "";
+
+		$ms = "";
+		$uid = "";
+		$user_id = "";
+		$fry = "";
+		$frm = "";
+		$frd = "";
+		$frh = "";
+		$fri = "";
+		$toy = "";
+		$tom = "";
+		$tod = "";
+		$toh = "";
+		$toi = "";
+		$kind = "";
+		$note = "";
+		$of = "";
+
+		$usrchk = "";
+
+		## 変数処理
+		if (isset($_POST["ms"])) { $ms = textsafe(sjis2euc($_POST["ms"])); }
+		if (isset($_POST["uid"])) { $uid = textsafe(sjis2euc($_POST["uid"])); }
+		if (isset($_POST["user_id"])) { $user_id = textsafe(sjis2euc($_POST["user_id"])); }
+		if (isset($_POST["fry"])) { $fry = textsafe(sjis2euc($_POST["fry"])); }
+		if (isset($_POST["frm"])) { $frm = textsafe(sjis2euc($_POST["frm"])); }
+		if (isset($_POST["frd"])) { $frd = textsafe(sjis2euc($_POST["frd"])); }
+		if (isset($_POST["frh"])) {
+			$frh = textsafe(sjis2euc($_POST["frh"]));
+			if ($frh=="0") {
+				$frh = "00";
+			} elseif (empty($frh)) {
+				$frh = "-1";
+			}
+		}
+		if (isset($_POST["fri"])) {
+			$fri = textsafe(sjis2euc($_POST["fri"]));
+			if ($fri=="0") {
+				$fri = "00";
+			} elseif (empty($fri)) {
+				$fri = "-1";
+			}
+			if (is_numeric($fri) && $fri>0) {
+				for ($i=0;$i<60;$i=$i+$interval) {
+					if ($fri>=$i && $fri<=$i+$interval-1) $fri = $i;
+				}
+			}
+		}
+		if (isset($_POST["toy"])) { $toy = textsafe(sjis2euc($_POST["toy"])); }
+		if (isset($_POST["tom"])) { $tom = textsafe(sjis2euc($_POST["tom"])); }
+		if (isset($_POST["tod"])) { $tod = textsafe(sjis2euc($_POST["tod"])); }
+		if (isset($_POST["toh"])) {
+			$toh = textsafe(sjis2euc($_POST["toh"]));
+			if ($toh=="0") {
+				$toh="00";
+			} elseif (empty($toh)) {
+				$toh = "-1";
+			}
+		}
+		if (isset($_POST["toi"])) {
+			$toi = textsafe(sjis2euc($_POST["toi"]));
+			if ($toi=="0") {
+				$toi="00";
+			} elseif (empty($toi)) {
+				$toi = "-1";
+			}
+			if (is_numeric($toi) && $toi>0) {
+				for ($i=0;$i<60;$i=$i+$interval) {
+					if ($toi>=$i && $toi<=$i+$interval-1) $toi=$i;
+				}
+			}
+		}
+		if (isset($_POST["kind"])) {
+			$kind = textsafe(sjis2euc($_POST["kind"]));
+			if ($kind=="none") $kind = "";
+		}
+		if (isset($_POST["note"])) { $note = textsafe(sjis2euc(remove_emoji($_POST["note"]))); }
+		if (isset($_POST["of"])) { $of = textsafe(sjis2euc($_POST["of"])); }
+
+		if (isset($_POST["usrchk"])) { $usrchk = textsafe(sjis2euc($_POST["usrchk"])); }
+		if (isset($_POST["u"])) {
+			if (sizeof($_POST["u"])>0) {
+				$u = $_POST["u"];
+			}
+		}
+
+		if (isset($_POST["oldgrp"])) { $oldgrp = textsafe(sjis2euc($_POST["oldgrp"])); }
+		if (isset($_POST["id_to"])) { $id_to = textsafe(sjis2euc($_POST["id_to"])); }
+		if (!empty($_REQUEST["s"])) { $s = textsafe(sjis2euc($_REQUEST["s"])); }
+		if (empty($_POST["n"]) || !is_numeric($_POST["n"]) || $_POST["n"]<1) $n=1;
+
+		if (!empty($_POST["grpchg"])) {
+			## グループ変更時
+		} else {
+			$grp = $oldgrp;
+		}
+
+		if (!empty($_POST["next"])) $n++;
+		if (!empty($_POST["prev"])) $n--;
+
+		## ユーザー選択時
+		if (!empty($usrchk)) {
+			if (sizeof($u)>0) {
+				if (!empty($id_to)) $id_tos = preg_split(",",$id_to);
+				while (list($seq,$val)=each($u)) {
+					if (!in_array($val,$id_tos)) { array_push($id_tos,$val); }
+				}
+			}
+		}
+		$id_to = join(",",$id_tos);
+
+		## ユーザー解除時
+		if (!empty($_POST["usrrmv"])) {
+			$id_to = "";
+			$u = "";
+		}
+
+		## エラーチェック
+		if (empty($fry) || !is_numeric($fry) || $fry==""){
+			$MES[] = "開始日を正しく入力して下さい";
+		} elseif (empty($frm) || !is_numeric($frm) || $frm==""){
+			$MES[] = "開始日を正しく入力して下さい";
+		} elseif (empty($frd) || !is_numeric($frd) || $frd==""){
+			$MES[] = "開始日を正しく入力して下さい";
+		} elseif (empty($frh) || !is_numeric($frh) || $frh==""){
+#			$MES[] = "開始時刻を正しく入力して下さい";
+		} elseif (empty($fri) || !is_numeric($fri) || $fri==""){
+#			$MES[] = "開始時刻を正しく入力して下さい";
+		} else {
+			if (checkdate($frm,$frd,$fry)==false) {
+				$MES[] = "開始日の指定が正しくありません";
+			}
+			if (($frh!=-1 && ($frh<0 || $frh>23)) || ($fri!=-1 && ($fri<0 || $fri>59))) {
+				$MES[] = "開始時刻の指定が正しくありません";
+			}
+		}
+
+		if (empty($toy) || !is_numeric($toy) || $toy==""){
+			$MES[] = "終了日を正しく入力して下さい";
+		} elseif (empty($tom) || !is_numeric($tom) || $tom==""){
+			$MES[] = "終了日を正しく入力して下さい";
+		} elseif (empty($tod) || !is_numeric($tod) || $tod==""){
+			$MES[] = "終了日を正しく入力して下さい";
+		} elseif (empty($toh) || !is_numeric($toh) || $toh==""){
+#			$MES[] = "終了時刻を正しく入力して下さい";
+		} elseif (empty($toi) || !is_numeric($toi) || $toi==""){
+#			$MES[] = "終了時刻を正しく入力して下さい";
+		} else {
+			if (checkdate($tom,$tod,$toy)==false) {
+				$MES[] = "終了日の指定が正しくありません";
+			}
+			if (($toh!=-1 && ($toh<0 || $toh>23)) || ($toi!=-1 && ($toi<0 || $toi>59))) {
+				$MES[] = "終了時刻の指定が正しくありません";
+			}
+		}
+
+		if (sizeof($MES)==0) {
+			$frdate = $fry."-".$frm."-".$frd;
+			$todate = $toy."-".$tom."-".$tod;
+			$frdatestamp = date2timestamp($frdate);
+			$todatestamp = date2timestamp($todate);
+			if ($frdatestamp > $todatestamp) {
+				$MES[] = "終了日は開始日以降の日付を設定して下さい";
+			} elseif($todatestamp-$frdatestamp>86400*60) {
+				$MES[] = "開始日と終了日の間が離れすぎています";
+			}
+
+			if ($frh==-1 and $fri!=-1 or $frh!=-1 and $fri==-1) {
+				$MES[] = "開始時刻の指定が正しくありません";
+				$frtime = "";
+			} else {
+				if ($frh==-1 or $fri==-1) {
+					$frtime = "";
+				} else {
+					$frtime = $frdate." ".$frh.":".$fri.":00";
+					$frtimestamp = datetime2timestamp($frtime);
+				}
+			}
+			if ($toh==-1 and $toi!=-1 or $toh!=-1 and $toi==-1) {
+				$MES[] = "終了時刻の指定が正しくありません";
+				$totime = "";
+			} else {
+				if ($toh==-1 or $toi==-1) {
+					$totime = "";
+				} else {
+					$totime = $todate." ".$toh.":".$toi.":00";
+					$totimestamp = datetime2timestamp($totime);
+				}
+			}
+		}
+
+		// エラーチェック第２段
+		if (sizeof($MES)==0) {
+#			// ブッキングチェック用 日時計算
+#			if ($frtime != "") {
+#				$check_frtime = $frtime;
+#			} else {
+#				if ($frdatestamp==$todatestamp and $totime != "") {
+#					$check_frtimestamp = ($totimestamp-3600*2)+1;
+#					$check_frtime = $frdate." ".date("H:i",$check_frtimestamp).":00";
+#				} else {
+#					$check_frtime = $frdate." ".$calc_frh.":".$calc_fri.":00";
+#				}
+#			}
+
+#			if ($totime != "") {
+#				$check_totime = date("Y-m-d H:i",($totimestamp-1)).":00";
+#			} else {
+#				if ($frdatestamp==$todatestamp and $frtime != "") {
+#					$check_totimestamp = ($frtimestamp+3600*2)-1;
+#					$check_totime = date("Y-m-d H:i",$check_totimestamp).":00";
+#				} else {
+#					$check_totime = date("Y-m-d H:i",datetime2timestamp($todate." ".$calc_toh.":".$calc_toi.":00")).":00";
+#				}
+#			}
+
+#			if ($room_id != "" and ($frtime == "" or $totime == "")) {
+#				$MES[] = "同時に施設の予約を行う場合、開始時刻と終了時刻は必ず指定する必要があります";
+#			} elseif ($room_id != "" and $frdate != $todate) {
+#				$MES[] = "施設の予約は日をまたいで行うことはできません";
+#			}
+
+			if ($frtime !="" and $totime !="") {
+				if ($frdate == $todate and $frh==$toh and $fri==$toi) {
+					$MES[] = "開始時刻と終了時刻が同一です";
+				} else {
+					if ($frdate == $todate and $frh*60+$fri > $toh*60+$toi) {
+						$MES[] = "終了時刻は開始時刻以降の時刻を設定してください";
+					}
+				}
+			}
+		}
+
+		## 内容
+		if (empty($note)) {
+			if (empty($s) || $over!="t") {
+				$MES[] = "内容を入力して下さい";
+			}
+		} else {
+			if (strlen($note)>500) {
+				$MES[] = "内容が長すぎます。全角250文字(半角500文字)までで入力してください";
+			}
+		}
+
+		## エラー表示
+		if (sizeof($MES)>0) {
+			$txt.= "<FONT COLOR=#FF0000>";
+			while (list($key,$val)=each($MES)) {
+				$txt.= $val."<BR>";
+			}
+			$txt.= "</FONT>";
+		}
+
+		if (sizeof($MES)==0) {
+			## 共有者の選択
+			$txt.= "他のメンバーと予定を共有することができます<BR>";
+
+			$txt.= "<FORM ACTION=\"./room.phtml\" METHOD=POST>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=dummy VALUE=予定表ハンカクカナ>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=\"$ms\">";
+			if (!empty($s)) $txt.= "<INPUT TYPE=HIDDEN NAME=s VALUE=$s>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=user_id VALUE=$user_id>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=uid VALUE=$uid>";
+#			$txt.= "<INPUT TYPE=HIDDEN NAME=r VALUE=$r>";
+			if (!empty($a)) $txt.= "<INPUT TYPE=HIDDEN NAME=a VALUE=$a>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=fry VALUE=$fry>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=frm VALUE=$frm>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=frd VALUE=$frd>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=frh VALUE=$frh>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=fri VALUE=$fri>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=toy VALUE=$toy>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=tom VALUE=$tom>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=tod VALUE=$tod>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=toh VALUE=$toh>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=toi VALUE=$toi>";
+			if (!empty($kind)) $txt.= "<INPUT TYPE=HIDDEN NAME=kind VALUE=\"$kind\">";
+			if (!empty($over)) $txt.= "<INPUT TYPE=HIDDEN NAME=over VALUE=t>";
+			if (!empty($note)) $txt.= "<INPUT TYPE=HIDDEN NAME=note VALUE=\"$note\">";
+			if (!empty($of)) $txt.= "<INPUT TYPE=HIDDEN NAME=of VALUE=$of>";
+
+			if (sizeof($id_tos)<1) {
+				$txt.= "<center><input type=\"submit\" name=\"noshare\" value=\"共有せず登録\"></center>";
+			} else {
+				$txt.= "<hr size=\"0\">";
+				$txt.= "共有先:";
+				$c = 0;
+				while (list($seq,$val)=each($id_tos)) {
+					if ($val!="") {
+						$c++;
+						if ($c>1) $txt.= ",";
+						$txt.= get_first("users","name_ryaku","id='$val'","不明");
+					}
+				}
+				$txt.= "<CENTER>";
+				if (!empty($id_to)) $txt.= "<INPUT TYPE=HIDDEN NAME=\"id_to\" VALUE=\"$id_to\">";
+				$txt.= "<INPUT TYPE=SUBMIT NAME=\"share\" VALUE=\"共有して登録\"><BR>";
+				$txt.= "</CENTER>";
+			}
+			$txt.= "</FORM>";
+
+			$txt.= "<hr size=\"0\">";
+			$txt.= "<FORM ACTION=\"./share.phtml\" METHOD=POST>";
+			$txt.= "<INPUT TYPE=HIDDEN name=dummy value=予定表ハンカクカナ>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=\"$ms\">";
+			if (!empty($s)) $txt.= "<INPUT TYPE=HIDDEN NAME=s VALUE=$s>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=user_id VALUE=\"$user_id\">";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=uid VALUE=$uid>";
+			if (!empty($a)) $txt.= "<INPUT TYPE=HIDDEN NAME=a VALUE=$a>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=fry VALUE=$fry>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=frm VALUE=$frm>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=frd VALUE=$frd>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=frh VALUE=$frh>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=fri VALUE=$fri>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=toy VALUE=$toy>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=tom VALUE=$tom>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=tod VALUE=$tod>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=toh VALUE=$toh>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=toi VALUE=$toi>";
+			if (!empty($kind)) $txt.= "<INPUT TYPE=HIDDEN NAME=kind VALUE=\"$kind\">";
+			if (!empty($over)) $txt.= "<INPUT TYPE=HIDDEN NAME=over VALUE=t>";
+			if (!empty($note)) $txt.= "<INPUT TYPE=HIDDEN NAME=note VALUE=\"$note\">";
+			if (!empty($of)) $txt.= "<INPUT TYPE=HIDDEN NAME=of VALUE=$of>";
+			if (!empty($body)) $txt.= "<INPUT TYPE=HIDDEN NAME=\"body\" VALUE=\"$body\">";
+			if (!empty($priority)) $txt.= "<INPUT TYPE=HIDDEN NAME=\"priority\" VALUE=\"$priority\">";
+			if (!empty($send)) $txt.= "<INPUT TYPE=HIDDEN NAME=\"send\" VALUE=\"$send\">";
+			if (!empty($grp)) $txt.= "<INPUT TYPE=HIDDEN NAME=\"oldgrp\" VALUE=\"$grp\">";
+			if (!empty($id_to)) $txt.= "<INPUT TYPE=HIDDEN NAME=\"id_to\" VALUE=\"$id_to\">";
+			if (!empty($n)) $txt.= "<INPUT TYPE=HIDDEN NAME=\"n\" VALUE=\"$n\">";
+			if (!empty($id_to)) {
+				$id_tos = preg_split(",",$id_to);
+			}
+
+			## グループ選択メニュー
+			$txt.= "<select name=\"grp\" method=\"post\">";
+			$sql_grp = "SELECT name,id,viewsign FROM groups ORDER BY seqno";
+			$res_grp = pg_query($conn,$sql_grp);
+			$cnt_grp = pg_num_rows($res_grp);
+
+			if ($cnt_grp>0) {
+				$txt.= "<option value=\"all\"";
+				if (empty($grp) || $grp=="all") $txt.= " selected";
+				$txt.= ">全て";
+				for ($i=0;$i<$cnt_grp;$i++) {
+					$row_grp = pg_fetch_array($res_grp,$i);
+					$txt.= "<OPTION";
+					if ($row_grp["id"]==$grp) $txt.= " selected";
+					$txt.= " VALUE=\"".$row_grp["id"]."\"";
+					$txt.= ">".$row_grp["name"];
+				}
+			}
+			$txt.= "</select>";
+			$txt.= "<center><input type=\"submit\" name=\"grpchg\" value=\"グループ変更\"></center>";
+
+			## ユーザー選択メニュー
+			if ((empty($grp) || trim($grp)=="" || $grp=="all")) {
+				$sql_user = "SELECT id,name_ryaku FROM users ORDER BY seqno";
+			} else {
+				$sql_user = "SELECT id,name_ryaku FROM users";
+				$sql_user.= " RIGHT JOIN (SELECT * FROM users_entry WHERE group_id='$grp') as entry ON users.id=entry.user_id";
+				$sql_user.= " WHERE id<>'$login_id' ORDER BY seqno";
+			}
+			$res_user = pg_query($conn,$sql_user);
+			$cnt_user = pg_num_rows($res_user);
+
+			if ($cnt_user>0) {
+				## ページ切替処理
+				$nextpage = false;
+				$allpages = floor($cnt_user / $maxrow) +1;
+				if ($n > $allpages) $n = 1;
+				$s_row = ($n - 1) * $maxrow;
+				$e_row = $n * $maxrow - 1;
+				if ($e_row > $cnt_user - 1) $e_row = $cnt_user - 1;
+				if ($cnt_user - 1 > $e_row) $nextpage = true;
+
+				for($i=$s_row; $i<=$e_row; $i++) {
+					$row_user = pg_fetch_array($res_user, $i);
+					if ($login_id != $row_user["id"]) {
+						$txt.= "<input type=\"checkbox\" name=\"u[]\" value=\"".$row_user["id"]."\"";
+						if (in_array($row_user["id"],$id_tos)) { $txt.= " checked"; }
+						$txt.= ">".$row_user["name_ryaku"];
+						$txt.= "<br>";
+					}
+				}
+
+				## ページ切替表示
+				$txt.= "<center>";
+				if ($n > 1)    { $txt.= "<input type=\"submit\" name=\"prev\" VALUE=\"前の".$maxrow."件\">"; }
+				if ($nextpage) { $txt.= "<input type=\"submit\" name=\"next\" VALUE=\"次の".$maxrow."件\">"; }
+				$txt.= "</center>";
+			}
+
+			$txt.= "<center>";
+			$txt.= "<input type=\"submit\" name=\"usrchk\" value=\"選択\">";
+			$txt.= "<input type=\"submit\" name=\"usrrmv\" value=\"解除\">";
+			$txt.= "</center>";
+		}
+		$txt.= "</CENTER>";
+	}
+
+	include "../../footer.inc.php";
+?>

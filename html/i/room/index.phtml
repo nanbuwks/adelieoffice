@@ -1,0 +1,140 @@
+<?php
+	include ("../../config.inc.php"); include ("../../lib.inc.php");
+	include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+	$pagetitle = "施設予約";
+	include ("../header.inc.php");
+
+	$txt.= "<!--";
+	// エラーチェック
+	if ($login==false) {
+		$MES[] = "先に、ログインしてください ⇒ <A HREF=\"/i/".$serial."\">ログインページへ</A>";
+	} else {
+		if (trim($login_id) == "") {
+			$MES[] = "ユーザーＩＤが正しくありません";
+		} else {
+			$sql = "select * from users where id='".$login_id."'";
+			$res = pg_query($conn, $sql);
+
+			if (pg_num_rows($res)<1) {
+				$MES[] = "ユーザーＩＤが正しくありません".$sql;;
+			} else {
+				$row = pg_fetch_array($res,0);
+			}
+		}
+	}
+	$txt.= "-->";
+
+	if ($uid=="") { $uid = $login_id; }
+
+	if (sizeof($MES)==0) {
+		//データ獲得
+		$sql = "SELECT * FROM rooms";
+		$res = pg_query($conn,$sql);
+		if (pg_num_rows($res)<1) {
+			$MES[] = "施設未登録";
+		} else {
+			$row = pg_fetch_array($res,0);
+		}
+
+		if (sizeof($MES)==0) {
+			//現在日の設定
+			if ($y=="" or $y==0 or !is_numeric($y) or $m=="" or $m==0 or !is_numeric($m) or $d=="" or $d==0 or !is_numeric($d)) {
+				$tempdate = getdate();
+				$y = $tempdate["year"];
+				$m = $tempdate["mon"];
+				$d = $tempdate["mday"];
+			}
+			$stamp = mktime(0, 0, 0, $m, $d, $y);
+		}
+	}
+
+	if (sizeof($MES)>0) {
+		// エラー時
+		$txt.= "<FONT COLOR=#FF0000>";
+		while (list($key,$val)=each($MES)) {
+			$txt.= $val."<BR>";
+		}
+		$txt.= "</FONT><hr size=\"0\">";
+	} else {
+		// 正常時
+		$txt.= "施設・設備予約&emojibuild;";
+		$txt.= "<hr size=\"0\">";
+
+		// SELECT条件の指定
+		$sql = "SELECT rooms.seqno,rooms.id,rooms.name FROM rooms_type";
+		$sql.= " inner join rooms on rooms_type.seqno=rooms.type";
+		$sql.= " ORDER BY rooms_type.seqno,rooms.seqno";
+		$res = pg_query($conn,$sql);
+		$cnt = pg_num_rows($res);
+
+		// 改ページシステム
+		$linkstr = "./$serial&rid=$rid&y=".$prev_d["year"]."&m=".$prev_d["mon"]."&d=".$prev_d["mday"];
+		$rows = 9;
+		if ($p<1) {
+			$p = 1;
+		} else {
+			if ($rows*($p-1)>$cnt) { $p = 1; }
+		}
+		$s_row = ($p-1) * $rows;
+		$e_row = $p * $rows - 1;
+		if ($e_row>$cnt-1) { $e_row = $cnt-1; }
+		if ($cnt-1>$e_row) { $nextpage = true; }
+		$allpages = floor(($cnt-1)/$rows)+1;
+		if ($allpages>1) {
+			$r = 0;
+			$s_p = $p - 4;
+			$e_p = $p + 4;
+			if ($s_p<1) {
+				$r = 1-$s_p;
+				$s_p = $s_p + $r;
+				$e_p = $e_p + $r;
+			} elseif ($e_p>$allpages) {
+				$r = $e_p - $allpages;
+				$s_p = $s_p - $r;
+				$e_p = $e_p - $r;
+			}
+			if ($s_p < 1) { $s_p = 1; }
+			if ($e_p > $allpages) { $e_p = $allpages; }
+			if ($p>1) {
+				$backlink = "";
+				$backlink.= "<DIV ALIGN=CENTER>";
+				$backlink.= "&lt;<A HREF=\"".$linkstr."&p=".($p-1)."\">前の".$rows."件</A>&gt;";
+				$backlink.= "</DIV>";
+			}
+			if ($nextpage) {
+				$nextlink = "";
+				$nextlink.= "<DIV ALIGN=CENTER>";
+				$nextlink.= "&lt;<A HREF=\"".$linkstr."&p=".($p+1)."\">次の".$rows."件</A>&gt;";
+				$nextlink.= "</DIV>";
+			}
+		}
+
+		// 前ページリンク
+		if ($p>1) { $txt.= $backlink; }
+
+		// 各行表示
+		if ($cnt>0) {
+			$c = 0;
+			for ($i=$s_row;$i<=$e_row;$i++) {
+				$c++;
+				$row = pg_fetch_array($res,$i);
+				$txt.= "&emoji".$c.";";
+				$txt.= "<A HREF=\"./daily.phtml$serial&rid=".$row["id"]."&y=$y&m=$m&d=$d\" $accesskey=$c>";
+				$txt.= mb_convert_kana($row["name"],"ak","EUC-JP");
+				$txt.= "</A><BR>\n";
+			}
+		}
+
+		// 次ページリンク
+		if ($nextpage=="t") { $txt.= $nextlink; }
+
+		$txt.= "<hr size=\"0\">";
+		$txt.= "<DIV ALIGN=\"RIGHT\">";
+		$txt.= "<A HREF=\"./add/$serial&rid=$rid&room_id=$room_id&p=top&y=$y&m=$m&d=$d&ey=$y&em=$m&ed=$d\" $accesskey=0>";
+		$txt.= "&emoji0;新規予定</A>";
+		$txt.= "</DIV>";
+	}
+
+	include ("../footer.inc.php");
+?>

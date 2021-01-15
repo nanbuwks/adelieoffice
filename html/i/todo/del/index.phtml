@@ -1,0 +1,61 @@
+<?php
+  include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+  include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+  $pagetitle = "備忘録の削除";
+  include "../../header.inc.php";
+
+//  $txt.= "<!--";
+  // エラーチェック
+  if ($login==false) {
+    $MES[] = "先に、ログインしてください ⇒ <A HREF=\"".$toppath."/i/\">ログインページへ</A>";
+  } else {
+    if (trim($login_id) == "") {
+      $MES[] = "ユーザーＩＤが正しくありません";
+    } else {
+      $sql = "select * from users where id='".$login_id."'";
+      $res = pg_query($conn, $sql);
+
+      if (pg_num_rows($res)<1) {
+        $MES[] = "ユーザーＩＤが正しくありません".$sql;;
+      } else {
+        $row = pg_fetch_array($res,0);
+      }
+    }
+  }
+//  $txt.= "-->";
+
+  // データ確認
+  if (sizeof($MES)==0) {
+    $sql = "SELECT * FROM todos WHERE seqno=$s";
+    $res = pg_query($conn,$sql);
+    if(pg_num_rows($res)==0){
+      $MES[] = "指定情報不明";
+    }
+    pg_free_result($res);
+  }
+
+  if (sizeof($MES)>0) {
+    // エラー時
+    $txt.= "<DIV ALIGN=CENTER><BR>";
+    $txt.= "<FONT COLOR=#FF0000>";
+    while (list($key,$val)=each($MES)) {
+      $txt.= $val."<BR>";
+    }
+    $txt.= "</FONT>";
+    $txt.= "</DIV><BR>";
+  } else {
+    // 正常時
+    $txt.= "<FORM ACTION=\"./del.phtml$serial\" METHOD=POST>";
+    $txt.= "<INPUT TYPE=\"HIDDEN\" NAME=\"ms\" VALUE=\"$ms\">";
+    $txt.= "<INPUT TYPE=\"HIDDEN\" NAME=\"s\" VALUE=\"$s\">";
+    $txt.= "<INPUT TYPE=\"HIDDEN\" NAME=\"p\" VALUE=\"$p\">";
+    $txt.= "<DIV ALIGN=CENTER><BR>";
+    $txt.= "削除しますか？<BR><BR>";
+    $txt.= "<INPUT TYPE=SUBMIT VALUE=\"実行\">";
+    $txt.= "</DIV><BR>";
+    $txt.= "</FORM>";
+  }
+  include "../../footer.inc.php";
+
+?>

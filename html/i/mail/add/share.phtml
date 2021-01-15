@@ -1,0 +1,218 @@
+<?php
+  include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+  include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+  $pagetitle = "伝言メモ 送信先選択";
+  include ("../../header.inc.php");
+
+  if (empty($n)) $n = 1;
+  $maxrow = 10; // 1ページの表示ユーザ数
+
+  if($login) {
+    // 前処理
+    $body = textsafe(sjis2euc(remove_emoji($body)));
+
+    // エラーチェック
+    if (empty($body) || trim($body)=="" ) {
+      $MES[] = "内容を入力してください";
+    } elseif(strlen($body)>512) {
+      $MES[] = "内容が長すぎます。携帯版512文字まで";
+      $body = mb_strcut($body,0,512);
+    }
+
+    if (!empty($_POST["grpchg"])) {
+      // グループ変更時
+    } else {
+      $grp = $oldgrp;
+    }
+    if (!empty($_POST["next"])) $n++;
+    if (!empty($_POST["prev"])) $n--;
+
+    if (!empty($_POST["usrchk"])) {
+      // ユーザー選択時
+      if (sizeof($u)>0) {
+        $tos = preg_split(",",$to);
+        while (list($seq,$val)=each($u)) {
+          $find = false;
+          if (sizeof($tos)>0) {
+            for ($i=0;$i<sizeof($tos);$i++) {
+              if ($tos[$i]==$val) {
+                $find = true;
+                break;
+              }
+            }
+          }
+          if (!$find) {
+            if (!empty($to) || $to!=",") $to .= ",";
+            $to .= $val;
+          }
+        }
+      }
+    }
+    if (!empty($_POST["usrrmv"])) {
+      // ユーザー解除時
+      if (sizeof($u)>0) {
+        $tos = preg_split(",",$to);
+        $to = "";
+        while (list($seq,$val)=each($tos)) {
+          $find = true;
+          if ($val != "") {
+            if (sizeof($u)>0) {
+              for ($i=0;$i<sizeof($u);$i++) {
+                if ($u[$i]==$val) {
+                  $find = false;
+                  break;
+                }
+              }
+            }
+          }
+          if ($find) {
+            if (!empty($to) || $to!=",") $to .= ",";
+            $to .= $val;
+          }
+        }
+      }
+    }
+    // ユーザー配列の整理
+    if ($to!="") {
+      $w_to = "";
+      $w_tos = preg_split(",",$to);
+      if (sizeof($w_tos)>0) {
+        while (list($seq,$val)=each($w_tos)) {
+          if ($val != "") {
+            if ($w_to != "") $w_to .= ",";
+            $w_to .= $val;
+          }
+        }
+        $to = $w_to;
+      } else {
+        $to = "";
+      }
+    }
+
+    if (sizeof($MES)>0) {
+      $txt.= "<FORM ACTION=\"./\" METHOD=POST>";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+      if (!empty($body))     $txt.= "<INPUT TYPE=HIDDEN NAME=\"body\" VALUE=\"".view_textsafe($body)."\">";
+      if (!empty($priority)) $txt.= "<INPUT TYPE=HIDDEN NAME=\"priority\" VALUE=\"$priority\">";
+      if (!empty($send))     $txt.= "<INPUT TYPE=HIDDEN NAME=\"send\" VALUE=\"$send\">";
+      $txt.= "<FONT COLOR=#FF0000>";
+      while (list($key,$val)=each($MES)) {
+        $txt.= $val."<BR>";
+      }
+      $txt.= "</FONT><BR>";
+      $txt.= "<CENTER>";
+      $txt.= "<INPUT TYPE=SUBMIT VALUE=\"戻る\">";
+      $txt.= "</CENTER>";
+    } elseif(!empty($commit)) {
+      // 更新確認ページ
+      $txt.= "<FORM ACTION=\"./add.phtml\" METHOD=POST>";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+      if (!empty($body))     $txt.= "<INPUT TYPE=HIDDEN NAME=\"body\" VALUE=\"$body\">";
+      if (!empty($priority)) $txt.= "<INPUT TYPE=HIDDEN NAME=\"priority\" VALUE=\"$priority\">";
+      if (!empty($send))     $txt.= "<INPUT TYPE=HIDDEN NAME=\"send\" VALUE=\"$send\">";
+      if (!empty($grp))      $txt.= "<INPUT TYPE=HIDDEN NAME=\"oldgrp\" VALUE=\"$grp\">";
+      if (!empty($to))       $txt.= "<INPUT TYPE=HIDDEN NAME=\"to\" VALUE=\"$to\">";
+      $txt.= "<CENTER>";
+      $txt.= "<BR>";
+      $txt.= "送信しますか？<BR>";
+      $txt.= "<BR>";
+      $txt.= "<INPUT TYPE=SUBMIT VALUE=\"登録\">";
+      $txt.= "</CENTER>";
+      $txt.= "</FORM>\n";
+    } else {
+      // 共有者の選択
+      $txt.= "<FORM ACTION=\"./share.phtml\" METHOD=POST>";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+      if (!empty($body))     $txt.= "<INPUT TYPE=HIDDEN NAME=\"body\" VALUE=\"$body\">";
+      if (!empty($priority)) $txt.= "<INPUT TYPE=HIDDEN NAME=\"priority\" VALUE=\"$priority\">";
+      if (!empty($send))     $txt.= "<INPUT TYPE=HIDDEN NAME=\"send\" VALUE=\"$send\">";
+      if (!empty($grp))      $txt.= "<INPUT TYPE=HIDDEN NAME=\"oldgrp\" VALUE=\"$grp\">";
+      if (!empty($to))       $txt.= "<INPUT TYPE=HIDDEN NAME=\"to\" VALUE=\"$to\">";
+      if (!empty($n))        $txt.= "<INPUT TYPE=HIDDEN NAME=\"n\" VALUE=\"$n\">";
+      if (!empty($to)) {
+        $tos = preg_split(",",$to);
+      }
+      $txt.= "送信先:";
+      if (sizeof($tos)==0) {
+        $txt.= "未設定";
+      } else {
+        $c = 0;
+        while (list($seq,$val)=each($tos)) {
+          if ($val!="") {
+            $c++;
+            if ($c>1) $txt.= ",";
+            $txt.= mb_convert_kana(get_first("users","name_ryaku","id='$val'","不明"),"ak","EUC-JP");
+          }
+        }
+        $txt.= "<CENTER>";
+        $txt.= "<INPUT TYPE=SUBMIT NAME=\"commit\" VALUE=\"登録\">";
+        $txt.= "</CENTER>";
+      }
+
+      $txt.= "<hr size=\"0\">";
+#      $txt.= "グループ選択:";
+      $txt.= "<SELECT NAME=\"grp\">";
+      $sql_grp = "SELECT name,id,viewsign FROM groups ORDER BY seqno";
+      $res_grp = pg_query($conn,$sql_grp);
+      $cnt_grp = pg_num_rows($res_grp);
+
+      if ($cnt_grp>0) {
+        $txt.= "<OPTION VALUE=\"all\"";
+        if (empty($grp) || $grp=="all") $txt.= " SELECTED";
+        $txt.= ">全て";
+        for ($i=0;$i<$cnt_grp;$i++) {
+          $row_grp = pg_fetch_array($res_grp,$i);
+          $txt.= "<OPTION";
+          if ($row_grp["id"]==$grp) $txt.= " SELECTED";
+          $txt.= " VALUE=\"".$row_grp["id"]."\"";
+          $txt.= ">".mb_convert_kana($row_grp["name"],"ak");
+        }
+      }
+      $txt.= "</SELECT>";
+      $txt.= "<CENTER><INPUT TYPE=SUBMIT NAME=\"grpchg\" VALUE=\"グループ変更\"></CENTER>";
+
+      if ((empty($grp) || trim($grp)=="" || $grp=="all")) {
+          $sql_user = "SELECT id,name_ryaku FROM users ORDER BY seqno";
+      } else {
+          $sql_user = "SELECT id,name_ryaku FROM users RIGHT JOIN (SELECT * FROM users_entry WHERE group_id='$grp') as entry ON users.id=entry.user_id WHERE id<>'$login_id' ORDER BY seqno";
+        }
+        $res_user = pg_query($conn,$sql_user);
+        $cnt_user = pg_num_rows($res_user);
+        if ($cnt_user>0) {
+          // ページ計算
+          $allpages = floor($cnt_user/$maxrow)+1;
+          if ($n>$allpages) $n = 1;
+          $s_row = ($n-1) * $maxrow;
+          $e_row = $n * $maxrow - 1;
+          if ($e_row>$cnt_user-1) {$e_row = $cnt_user-1;}
+          if ($cnt_user-1>$e_row) {$nextpage = true;}
+
+          for($i=$s_row;$i<=$e_row;$i++) {
+            $row_user = pg_fetch_array($res_user,$i);
+            if ($login_id != $row_user["id"]) { //自身を除外
+              $txt.= "<INPUT TYPE=CHECKBOX NAME=\"u[]\" VALUE=\"".$row_user["id"]."\"";
+              $txt.= ">".mb_convert_kana($row_user["name_ryaku"],"ak","EUC-JP");
+              $txt.= "<BR>";
+            }
+          }
+
+        $txt.= "<CENTER>";
+        if ($n>1) {
+          $txt.= "<INPUT TYPE=SUBMIT NAME=\"prev\" VALUE=\"前の".$maxrow."件\">";
+        }
+        if ($nextpage) {
+          $txt.= "<INPUT TYPE=SUBMIT NAME=\"next\" VALUE=\"次の".$maxrow."件\">";
+        }
+        $txt.= "</CENTER>";
+      }
+
+      $txt.= "<CENTER>\n";
+      $txt.= "<INPUT TYPE=SUBMIT NAME=\"usrchk\" VALUE=選択>";
+      $txt.= "<INPUT TYPE=SUBMIT NAME=\"usrrmv\" VALUE=解除>";
+      $txt.= "</CENTER>\n";
+      $txt.= "</FORM>\n";
+    }
+  }
+	include ("../../footer.inc.php");
+?>

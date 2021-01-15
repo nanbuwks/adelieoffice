@@ -1,0 +1,285 @@
+<?php
+	include ("../../config.inc.php"); include ("../../lib.inc.php");
+	include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+	//現在日の設定
+	if ($y=="" or $y==0 or !is_numeric($y) or $m=="" or $m==0 or !is_numeric($m)) {
+		$tempdate = getdate();
+		$y = $tempdate["year"];
+		$m = $tempdate["mon"];
+		$d = $tempdate["mday"];
+	}
+	$stamp = mktime(0, 0, 0, $m, $d, $y);
+
+	// ヘッダ準備
+	$pagetitle = "施設予約";
+
+	if ($rid != "") {
+		$sql = "SELECT * FROM rooms WHERE id='".$rid."'";
+		$res = pg_query($conn,$sql);
+		if (pg_num_rows($res)>0) {
+			$row = pg_fetch_array($res,0);
+			$pagetitle .= "[". $row["name"]."] ";
+		} else {
+			$MES[] = "施設未登録";
+		}
+	}
+	$pagetitle .= $y."年".$m."月";
+
+	// ヘッダ表示
+	include ("../header.inc.php");
+
+	if ($rid=="") {
+		$MES[] = "施設ＩＤが正しくありません".$sql;
+	}
+
+	$txt.= "<!--";
+
+	// エラーチェック
+	if ($login==false) {
+		$MES[] = "先に、ログインしてください ⇒ <A HREF=\"/i/\">ログインページへ</A>";
+	} else {
+		if (trim($login_id) == "") {
+			$MES[] = "ユーザーＩＤが正しくありません";
+		} else {
+			$sql = "select * from users where id='".$login_id."'";
+			$res = pg_query($conn, $sql);
+
+			if (pg_num_rows($res)<1) {
+				$MES[] = "ユーザーＩＤが正しくありません".$sql;;
+			} else {
+				$row = pg_fetch_array($res,0);
+			}
+		}
+	}
+
+	$txt.= "-->";
+
+	if (sizeof($MES)==0) {
+		//データ獲得
+		$sql = "SELECT * FROM rooms WHERE id='".$rid."'";
+		$res = pg_query($conn,$sql);
+		if (pg_num_rows($res)<1) {
+			$MES[] = "施設未登録";
+			$room_name = "不明または削除";
+		} else {
+			$row = pg_fetch_array($res,0);
+			$manage_id = $row["manage_id"];
+			$group_ids = $row["view_group_ids"];
+			$user_ids  = $row["view_user_ids"];
+		}
+	}
+
+	if (sizeof($MES)>0) {
+		// エラー時
+		$txt.= "<font color=#FF0000>";
+		// エラーメッセージ出力
+		while (list($key,$val)=each($MES)) {
+			$txt.= $val."<BR>";
+		}
+		$txt.= "<hr size=\"0\">\n";
+
+	} else {
+
+		// カラー、日付、祭日のセット
+		$dispday = $stamp;
+
+		// 祭日チェック
+		$sql_holiday = "select * from holiday where holiday='".date("Y-m-d",$dispday)."'";;
+		$res_holiday = pg_query($conn, $sql_holiday);
+
+		$tempdate = getdate($dispday);
+		$w = $tempdate["wday"];
+
+		if (pg_num_rows($res_holiday)<1) {
+			$backcolor = $wcolor_back[$w];
+			$forecolor = $wcolor[$w];
+		} else {
+			$backcolor = $wcolor_back[7];
+			$forecolor = $wcolor[7];
+		}
+		pg_free_result($res_holiday);
+
+		$prev_d = getdate($stamp - 86400 * 1);
+		$next_d = getdate($stamp + 86400 * 1);
+
+		$today = getdate();
+
+		$txt.= "<DIV ALIGN=CENTER>";
+
+		// 開始日 終了日の算出
+		$first = getdate(mktime(0, 0, 1, $m, 1, $y));
+
+		$next_y = $y;
+		$next_m = $m + 1;
+		if ($next_m>12) {
+			$next_y = $y + 1;
+			$next_m = 1;
+		}
+
+		$prev_y = $y;
+		$prev_m = $m - 1;
+		if ($prev_m<1) {
+			$prev_y = $y- 1;
+			$prev_m = 12;
+		}
+
+		$last = getdate(mktime(0, 0, 1, $next_m, 1, $next_y)-86400);
+
+		$txt.= "<a href=\"./daily.phtml".$serial."&rid=".$rid."&y=$y&m=$m&d=$d\" ".$accesskey."=1 tabindex=1>今日の予定へ</a><br>";
+
+		// 年月表示
+		$txt.= "<a href=\"./monthly.phtml".$serial."&rid=".$rid."&y=".$prev_y."&m=".$prev_m."\" >&lt;&lt;</a>";
+		$txt.= "&nbsp;";
+
+		$txt.= $y."年".$m."月";
+
+		$txt.= "&nbsp;";
+		$txt.= "<a href=\"./monthly.phtml".$serial."&rid=".$rid."&y=".$next_y."&m=".$next_m."\" >&gt;&gt;</a>";
+		$txt.= "<br>";
+
+		// 曜日表示
+		for ($col=0;$col<7;$col++) {
+			$txt.= "".$wname[$col]."";
+			if ($char_w > 20){
+				$txt.= "&nbsp;";
+			}
+		}
+		$txt.= "<br>\n";
+
+		// カレンダー表示
+		$draw = false;
+		$d = 0;
+
+		$drawin = false;
+
+		$row=0;
+		while (true) {
+			$col=0;
+			while (true) {
+				$daytype = "";
+				// 前月まで
+				if (!$draw) {
+					if ($first["wday"]==$col) {
+						$drawin = true;
+						$draw = true;
+					}
+				}
+				// 当月まで
+				if ($draw) {
+					if ($d < $last["mday"]) {
+						$d++;
+						$checkdate = $y."/".$m."/".$d;
+						// 祭日チェック
+						$sql_holiday = "select * from holiday where holiday='".$checkdate."'";
+						$res_holiday = pg_query($conn, $sql_holiday);
+
+						if (pg_num_rows($res_holiday)<1) {
+							$daytype = "normal";
+						} else {
+							$daytype = "holiday";
+							$row_holiday = pg_fetch_array($res_holiday,0);
+							$holiday = $row_holiday["name"];
+						}
+					}
+				}
+				// 表示データ作成
+				switch ($daytype) {
+				case "":
+					$backcolor = $wcolor_back[$col];
+					$forecolor = $wcolor[$col];
+					if (!$drawin) {
+						// 当月以前
+						$diff = $col-$first["wday"];
+						$wd = getdate((mktime(0, 0, 1, $m, 1, $y)+(86400*$diff)));
+						$checkdate = $wd["year"]."/".$wd["mon"]."/".$wd["mday"];
+						$daytext = "　";
+					} else {
+						// 当月以降
+						$diff = $col-$last["wday"]-1;
+						$wd = getdate((mktime(0, 0, 1, $next_m, 1, $next_y)+(86400*$diff)));
+						$checkdate = $wd["year"]."/".$wd["mon"]."/".$wd["mday"];
+						$daytext = "　";
+					}
+					break;
+				case "normal":
+					$backcolor = $wcolor_back[$col];
+					$forecolor = $wcolor[$col];
+					if ($d<=9){
+						$daytext = "<a href=\"./daily.phtml".$serial."&rid=".$rid."&y=$y&m=$m&d=$d\" tabindex=".($d+1).">&nbsp;".$d."</a>";
+					} else {
+						$daytext = "<a href=\"./daily.phtml".$serial."&rid=".$rid."&y=$y&m=$m&d=$d\" tabindex=".($d+1).">".$d."</a>";
+					}
+					break;
+				case "holiday":
+					$backcolor = $wcolor_back[7];
+					$forecolor = $wcolor[7];
+					if ($d<=9){
+						$daytext = "<a href=\"./daily.phtml".$serial."&rid=".$rid."&y=$y&m=$m&d=$d\" tabindex=".($d+1).">&nbsp;".$d."</a>";
+					} else {
+						$daytext = "<a href=\"./daily.phtml".$serial."&rid=".$rid."&y=$y&m=$m&d=$d\" tabindex=".($d+1).">".$d."</a>";
+					}
+					break;
+				}
+
+				if ($daytype != "") {
+					if ($y==$today["year"] and $m==$today["mon"] and $d==$today["mday"]) {
+						// 今日
+						$backcolor = "#FF0000";
+					} else {
+						// 今日以外
+					}
+				} else {
+					// 今日以外(別の月)
+				}
+				$txt.= $daytext;
+				if ($char_w > 20){
+					$txt.= "&nbsp;";
+				}
+				// データチェック
+				$col++;
+				if ($col>6) {
+					break;
+				}
+			}
+			$txt.= "<br>\n";
+			$row++;
+			if ($d >= $last["mday"]) {
+				break;
+			}
+		}
+
+		//新規予定の為、現在日の設定
+		$tempdate = getdate();
+		$y = $tempdate["year"];
+		$m = $tempdate["mon"];
+		$d = $tempdate["mday"];
+
+		// 施設予約権限チェック
+		if (empty($manage_id) || $manage_id==$login_id || (empty($group_ids) && empty($user_ids))) {
+			$use = true;
+		} else {
+			if ($group_ids!="") {
+				$view_group_id = preg_split(",",$group_ids);
+				if (sizeof($view_group_id)>0) while (list($seq,$id)=each($view_group_id)) {
+					$chkcnt = get_count("users_entry","user_id='$login_id' AND group_id='$id'");
+					if ($chkcnt>0) { $use = true; break; }
+				}
+			}
+			if ($user_ids!="") {
+				$view_user_id = preg_split(",",$user_ids);
+				if (sizeof($view_user_id)>0) while (list($seq,$id)=each($view_user_id)) {
+					if ($login_id==$id) { $use = true; break; }
+				}
+			}
+		}
+		if ($use) {
+			$txt.= "<hr size=\"0\">";
+			$txt.= "<DIV ALIGN=RIGHT>";
+			$txt.= "<A HREF=\"./add/$serial&rid=$rid&p=monthly&y=$y&m=$m&d=$d&ey=$y&em=$m&ed=$d\" $accesskey=0>";
+			$txt.= "&emoji0;新規予約</A>";
+			$txt.= "</DIV>";
+		}
+	}
+	include ("../footer.inc.php");
+?>

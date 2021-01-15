@@ -1,0 +1,138 @@
+<?php
+	include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+	include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+	$pagetitle = "BBS投稿表示";
+	include ("../../header.inc.php");
+
+	if (empty($n)) $n = 1;
+
+	if ($login) {
+		// エラーチェック
+		if (empty($bid)) {
+			$MES[] = "ボードの指定が正しくありません";
+		}
+		if (sizeof($MES)==0) {
+			$board_admin_id = get_first("boards","admin_id","id='$bid'","");
+		}
+
+		if (empty($s) || !is_numeric($s)) {
+			$MES[] = "投稿の指定が正しくありません";
+		}
+		if (sizeof($MES)==0) {
+			$sql = "SELECT * FROM boards_post WHERE board_id='$bid' AND seqno=$s";
+			$res = pg_query($conn,$sql);
+			$cnt = pg_num_rows($res);
+			if ($cnt==0) {
+				$MES[] = "指定された投稿は既に削除されています";
+			}
+		}
+
+		if (sizeof($MES)>0) {
+			// エラー時
+			$txt.= "<font color=#FF0000>";
+			while (list($key,$val)=each($MES)) {
+				$txt.= $val."<br>";
+			}
+			$txt.= "</font>";
+		} else {
+			// 投稿表示
+			$row = pg_fetch_array($res,0);
+			$subject = mb_convert_kana($row["subject"],"ak");
+			$stamp   = $row["stamp"];
+			$user_id = $row["user_id"];
+
+			// 既読チェック処理
+			$sql = "SELECT * FROM boards_res WHERE board_id='$bid' AND seqno=$s AND user_id='$login_id'";
+			$res = pg_query($conn,$sql);
+			$cnt = pg_num_rows($res);
+			if ($cnt==0) {
+				$sql  = "INSERT INTO boards_res (board_id,seqno,user_id,createstamp) VALUES ";
+				$sql .= "('$bid',$s,'$login_id','now()')";
+				pg_query($conn,$sql);
+			}
+
+			// 本文の処理
+			$body = str_wiki(mb_convert_kana($row["body"],"ak"));
+			$body = preg_replace("/\x0D\x0A|\x0D|\x0A|\r\n|<BR>/","<BR>",$body);//改行カット
+			// ページに分割
+			$c=0;
+			while(true) {
+				$c++;
+				if ($c==1) {
+					$maxlen = 1350;
+				} else {
+					$maxlen = 1700;
+				}
+				$rowtext = mb_strcut($body,0,$maxlen,"EUC-JP");
+				$bodys[] = $rowtext;
+				$body = substr($body,strlen($rowtext));
+				if ($body=="" || $c>100) break;
+				if (strlen($body)<$maxlen) {
+					$bodys[] = $body;
+					break;
+				}
+			}
+			if ($n==1) {
+				$txt.= "表題:";
+				$txt.= $subject;
+				$txt.= "<BR>";
+
+				$txt.= "日時:";
+				if (date("Y",datetime2timestamp($stamp))==date("Y")) {
+					$txt.= date("m/d H:i",datetime2timestamp($stamp));
+				} else {
+					$txt.= date("Y/m/d H:i",datetime2timestamp($stamp));
+				}
+				$txt.= "<BR>";
+
+				$txt.= "投稿者:";
+				$sql_user = "SELECT * FROM users WHERE id='".$user_id."'";
+				$res_user = pg_exec($conn,$sql_user);
+				$cnt_user = pg_num_rows($res_user);
+				if ($cnt_user==0) {
+					$txt.= "不明";
+				} else {
+					$row_user = pg_fetch_array($res_user,0);
+					$username = $row_user["name_ryaku"];
+					if (trim($username)=="") $username = $row_user["name"];
+
+					$usermail = $row_user["email_sub"];
+					if (trim($usermail)=="") $usermail = $row_user["email"];
+
+					$txt.= "<A HREF=\"../../mem/detail.phtml$serial&sn=$sn&id=".$user_id."\">";
+					$txt.= $username;
+					$txt.= "</A>";
+
+					if (trim($row_user["email_sub"])!="") {
+						$txt.= "<A HREF=\"mailto:".$row_user["email_sub"]."\">&emojimobilephone;</A>";
+					}
+					if (trim($row_user["email"])!="") {
+						$txt.= "<A HREF=\"mailto:".$row_user["email"]."\">&emojipc;</A>";
+					}
+				}
+			}
+			$txt.= "<hr size=\"0\">";
+			$txt.= $bodys[$n-1];
+			if (sizeof($bodys)>$n) {
+				$txt.= "<DIV ALIGN=RIGHT>";
+				$txt.= " ⇒ <A HREF=\"./$serial&sn=$sn&bid=$bid&s=$s&p=$p&q=$q&n=".($n+1)."\">次頁へ</A>";
+				$txt.= "</DIV>";
+			}
+			if ($admin_sign=="t" || $board_admin_id==$login_id) {
+				$txt.= "<hr size=\"0\">";
+				$txt.= "<CENTER>";
+				$txt.= "&lt;<A HREF=\"../remove/$serial&sn=$sn&bid=$bid&p=$p&q=$q&s=$s\">削除</A>&gt;";
+				$txt.= "</CENTER>";
+			}
+
+			$txt.= "<hr size=\"0\">";
+			$txt.= "&emoji1;";
+			$txt.= "<A HREF=\"../regist/$serial&sn=$sn&bid=$bid&p=$p&q=$q&r=$s\" $accesskey=1>返信投稿</A>";
+			$txt.= "<DIV ALIGN=RIGHT>";
+			$txt.= "&emoji0;<A HREF=\"../regist/$serial&sn=$sn&bid=$bid&p=$p&q=$q$r=$s\" $accesskey=0>新規投稿</A>";
+			$txt.= "</DIV>";
+		}
+	}
+	include ("../../footer.inc.php");
+?>

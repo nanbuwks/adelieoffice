@@ -1,0 +1,295 @@
+<?php
+  include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+  include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+  $pagetitle = "BBS投稿";
+  include ("../../header.inc.php");
+
+  if (empty($n)) $n = 1;
+
+  if ($login) {
+    // 入力値準備
+    $subject = textsafe(sjis2euc(remove_emoji($subject)));
+    $body    = textsafe(sjis2euc(remove_emoji($body)));
+    $replysign = textsafe(sjis2euc(remove_emoji($replysign)));
+
+    ## 投稿許可チェック
+    $use        = false;
+    $row_boards = get_row("boards","*","id='$bid'");
+    $manage_id  = $row_boards["admin_id"];
+    $boardsname = $row_boards["name"];
+    $group_ids  = $row_boards["view_group_ids"];
+    $user_ids   = $row_boards["view_user_ids"];
+    $sendsign   = $row_boards["sendsign"];
+    if ($manage_id==$login_id || ($group_ids=="" && $user_ids=="")) {
+      ## 管理者 or 掲示板管理者 or 制約のない掲示板
+      $use = true;
+    } else {
+      if ($group_ids!="") {
+        $view_group_id = preg_split(",",$group_ids);
+        if (sizeof($view_group_id)>0) while (list($seq,$id)=each($view_group_id)) {
+          $chkcnt = get_count("users_entry","user_id='$login_id' AND group_id='$id'");
+          if ($chkcnt>0) { $use = true; break; }
+        }
+      }
+      if ($user_ids!="") {
+        $view_user_id = preg_split(",",$user_ids);
+        if (sizeof($view_user_id)>0) while (list($seq,$id)=each($view_user_id)) {
+          if ($login_id==$id) { $use = true; break; }
+        }
+      }
+    }
+    if (!$use) {
+      $MES[] = "指定された掲示板への投稿は許可されていません";
+    }
+    if (empty($bid) || trim($bid)=="") {
+      $MES[] = "ボードが正しく指定されていません";
+    } else {
+      if (get_first("boards","seqno","id='$bid'",0)==0) {
+        $MES[] = "ボードが正しく指定されていません";
+      }
+    }
+
+    ## 表題チェック
+    if (trim($subject)=="") {
+      $MES[] = "表題が入力されていません";
+    } elseif(strlen($subject)>80) {
+      $MES[] = "表題が長すぎます。全角40文字までで入力してください";
+      $subject = mb_strcut($subject,0,80);
+    }
+
+    ## 本文チェック
+    if (trim($body)=="") {
+      $MES[] = "本文が入力されていません";
+    } elseif(strlen($body)>10000) {
+      $MES[] = "本文が長すぎます。全角5000文字までで入力してください";
+      $body = mb_strcut($body,0,10000);
+    }
+
+    if (!empty($r) && is_numeric($r)) {
+      $sql = "SELECT * FROM boards_post WHERE board_id='$bid' AND seqno=$r";
+      $res = pg_query($conn,$sql);
+      $cnt = pg_num_rows($res);
+      if ($cnt==0) {
+        $MES[] = "指定された投稿は既に削除されています";
+      } else {
+        $row = pg_fetch_array($res,0);
+        $parent = $row["serial"];
+      }
+    }
+
+    // 登録処理
+    if (sizeof($MES)==0) {
+      $seqno = get_last("boards_post","seqno","board_id='".$bid."'",1)+1;
+      $ser = $board.date("YmdHi").make_serial(10)."@".$$remote_host;
+
+      $sql  = "INSERT INTO boards_post (";
+      $sql .= "board_id, seqno, user_id, stamp, serial, parent, subject, body, replysign";
+      $sql .= ") VALUES (";
+      $sql .= "'".$bid."',";
+      $sql .= $seqno.",";
+      $sql .= "'".$login_id."',";
+      $sql .= "'"."now"."',";
+      $sql .= "'".$ser."',";
+      $sql .= "'".$parent."',";
+      $sql .= "'".db_textsafe($subject)."',";
+      $sql .= "'".db_textsafe($body)."',";
+      $sql .= "'".$replysign."'";
+      $sql .= ")";
+      $res = pg_query($conn, $sql);
+      $cnt = pg_affected_rows($res);
+      if ($cnt==0) {
+        $MES[] = "登録に失敗しました";
+      }
+    }
+
+    ## 返信先へメールを送る
+    if (sizeof($DMES)==0 && !empty($parent)) {
+      $sql_chk = "SELECT user_id,replysign FROM boards_post WHERE serial='".$parent."'";
+      $res_chk = pg_query($conn,$sql_chk);
+      $cnt_chk = pg_num_rows($res_chk);
+      if ($cnt_chk>0) {
+        $row_chk = pg_fetch_array($res_chk,0);
+        if ($row_chk["user_id"]!=$login_id && $row_chk["user_id"]!=$manage_id && $row_chk["replysign"]=="t") {
+          ## mailsubject生成
+          $mailsubject  = "BBS:".date("m/d")."(".$wname[date("w")].") ".date("H:i");
+
+          ## mailbody生成
+          $mailbody  = "BBS:".$boardsname."";
+          $user_ryaku = trim(get_first("users","name_ryaku","id='$login_id'",""));
+          if (empty($user_ryaku)) { $user_ryaku = $login_name; }
+          $mailbody .= "投稿者:$user_ryaku";
+          $mailbody .= "タイトル:".mb_convert_kana($subject,"kan","EUC-JP")."";
+          $mailbody .= "------------------";
+          $mailbody .= mail_textsafe(mb_convert_kana($body,"kan","EUC-JP"));
+
+          ## mailfrom取得
+          $mailfrom = trim(get_first("users","email_sub","id='$login_id'",""));
+          if (empty($mailfrom)) { $mailfrom = trim(get_first("users","email","id='$login_id'","")); }
+
+          ## mailto取得
+          $mailto = trim(get_first("users","email_sub","id='".$row_chk["user_id"]."'",""));
+          if (empty($mailto)) { $mailto = trim(get_first("users","email","id='".$row_chk["user_id"]."'","")); }
+
+          if (!empty($mailfrom) && !empty($mailto)) {
+            ## ヘッダの生成
+            $mailheader  = "MIME-Version: 1.0\n";
+            $mailheader .= "Content-Type: text/plain; charset=iso-2022-jp\n";
+            $mailheader .= "Content-Transfer-Encoding: 7bit\n";
+            $mailheader .= "From: ".$mailfrom."\n";
+            $mailheader .= "Return-Path: ".$mailfrom."\n";
+            $mailheader .= "X-Mailer: AdelieOffice SendMail";
+
+            ## ワンタイムパースワード確認
+            $onepass = trim(get_first("users","onetime_passwd","id='".$row_chk["user_id"]."'",""));
+            if (trim($onepass)=="") {
+              $onepass = make_serial(12);
+              $sql_update = "UPDATE users SET onetime_passwd='".$onepass."' WHERE id='".$row_chk["user_id"]."'";
+              $res_update = pg_query($conn,$sql_update);
+            }
+
+            ## キャリア毎のメール準備
+            if (preg_match("@docomo\.ne\.jp$",$mailto)) {
+              # Docomo 500字(-120字[リンク分])まで
+              $maxlen = 500-120;
+            } elseif (preg_match("@jp\-.\.ne\.jp$",$mailto) || preg_match("@.*\.vodafone\.ne\.jp$",$mailto)) {
+              # J-SKY 384字(-120字[リンク分])まで
+              $maxlen = 384-120;
+            } elseif (preg_match("@ezweb\.ne\.jp$",$mailto) || preg_match("@.*\.ezweb\.ne\.jp$",$mailto) || preg_match("@ez.*\.ido\.ne\.jp$",$mailto)) {
+              # EZWeb 2000字(-120字[リンク分])まで
+              $maxlen = 2000-120;
+            } else {
+              $maxlen = 10000;
+            }
+            $mailbody = mb_strcut($mailbody,0,$maxlen);
+
+            $mailbody .= "\n--\n";
+            if (preg_match("@docomo\.ne\.jp$",$mailto) || preg_match("@jp\-.\.ne\.jp$",$mailto)  || preg_match("@.*\.vodafone\.ne\.jp$",$mailto) || preg_match("@ezweb\.ne\.jp$",$mailto) || preg_match("@.*\.ezweb\.ne\.jp$",$mailto) || preg_match("@ez.*\.ido\.ne\.jp$",$mailto)) { // Docomo or J-PHONE or EZWeb
+              $mailbody .= "投稿の確認⇒"."http://".$domain."/i/bbs/view/$serial&sn=".$onepass."&bid=".$board."&s=".$seqno;
+            } else {
+              $mailbody .= "投稿の確認⇒"."https://".$domain."/bulletin/view/?mode=dlogin&sn=".$onepass."&no=".$seqno;
+            }
+
+            ## メール送信
+            mail ($mailto,
+             mb_encode_mimeheader(euc2jis($mailsubject),"ISO-2022-JP"),
+             euc2jis($mailbody),
+             euc2jis($mailheader));
+          }
+        }
+      }
+    }
+
+    ## 管理者へメールを送る
+    if (sizeof($DMES)==0 && !empty($manage_id) && $manage_id!=$login_id && $sendsign=="t") {
+      ## mailsubject生成
+      $mailsubject  = "BBS:".date("m/d")."(".$wname[date("w")].") ".date("H:i");
+
+      ## mailbody生成
+      $mailbody  = "BBS:".$boardsname."\n";
+      $user_ryaku = trim(get_first("users","name_ryaku","id='$login_id'",""));
+      if (empty($user_ryaku)) { $user_ryaku = $login_name; }
+      $mailbody .= "投稿者:$user_ryaku\n";
+      $mailbody .= "タイトル:".mb_convert_kana($subject,"kan","EUC-JP")."\n";
+      $mailbody .= "------------------\n";
+      $mailbody .= mail_textsafe(mb_convert_kana($body,"kan","EUC-JP"));
+
+      ## mailfrom取得
+      $mailfrom = trim(get_first("users","email_sub","id='$login_id'",""));
+      if (empty($mailfrom)) { $mailfrom = trim(get_first("users","email","id='$login_id'","")); }
+
+      ## mailto取得
+      $mailto = trim(get_first("users","email_sub","id='".$manage_id."'",""));
+      if (empty($mailto)) { $mailto = trim(get_first("users","email","id='".$manage_id."'","")); }
+
+      if (!empty($mailfrom) && !empty($mailto)) {
+        ## ヘッダの生成
+        $mailheader  = "MIME-Version: 1.0\n";
+        $mailheader .= "Content-Type: text/plain; charset=iso-2022-jp\n";
+        $mailheader .= "Content-Transfer-Encoding: 7bit\n";
+        $mailheader .= "From: ".$mailfrom."\n";
+        $mailheader .= "Return-Path: ".$mailfrom."\n";
+        $mailheader .= "X-Mailer: AdelieOffice SendMail";
+
+        ## ワンタイムパースワード確認
+        $onepass = trim(get_first("users","onetime_passwd","id='".$manage_id."'",""));
+        if (trim($onepass)=="") {
+          $onepass = make_serial(12);
+          $sql_update = "UPDATE users SET onetime_passwd='".$onepass."' WHERE id='".$manage_id."'";
+          $res_update = pg_query($conn,$sql_update);
+        }
+
+        ## キャリア毎のメール準備
+        if (preg_match("@docomo\.ne\.jp$",$mailto)) {
+          # Docomo 500字(-120字[リンク分])まで
+          $maxlen = 500-120;
+        } elseif (preg_match("@jp\-.\.ne\.jp$",$mailto) || preg_match("@.*\.vodafone\.ne\.jp$",$mailto)) {
+          # J-SKY 384字(-120字[リンク分])まで
+          $maxlen = 384-120;
+        } elseif (preg_match("@ezweb\.ne\.jp$",$mailto) || preg_match("@.*\.ezweb\.ne\.jp$",$mailto) || preg_match("@ez.*\.ido\.ne\.jp$",$mailto)) {
+          # EZWeb 2000字(-120字[リンク分])まで
+          $maxlen = 2000-120;
+        } else {
+          $maxlen = 10000;
+        }
+        $mailbody = mb_strcut($mailbody,0,$maxlen);
+
+        $mailbody .= "\n--\n";
+        if (preg_match("@docomo\.ne\.jp$",$mailto) || preg_match("@jp\-.\.ne\.jp$",$mailto)  || preg_match("@.*\.vodafone\.ne\.jp$",$mailto) || preg_match("@ezweb\.ne\.jp$",$mailto) || preg_match("@.*\.ezweb\.ne\.jp$",$mailto) || preg_match("@ez.*\.ido\.ne\.jp$",$mailto)) { // Docomo or J-PHONE or EZWeb
+          $mailbody .= "投稿の確認⇒"."http://".$domain."/i/bbs/view/$serial&sn=".$onepass."&bid=".$board."&s=".$seqno;
+        } else {
+          $mailbody .= "投稿の確認⇒"."https://".$domain."/bulletin/view/?mode=dlogin&sn=".$onepass."&no=".$seqno;
+        }
+
+        ## メール送信
+        mail ($mailto,
+         mb_encode_mimeheader(euc2jis($mailsubject),"ISO-2022-JP"),
+         euc2jis($mailbody),
+         euc2jis($mailheader));
+      }
+    }
+
+    if (sizeof($MES)>0) {
+      // エラー時
+      $txt.= "<FORM ACTION=\"./\" METHOD=GET>";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=$ms>";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=bid VALUE=\"$bid\">";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=p VALUE=$p>";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=q VALUE=$q>";
+      if (!empty($r)) {
+        $txt.= "<INPUT TYPE=HIDDEN NAME=r VALUE=$r>";
+      }
+      if (!empty($subject)) {
+        $txt.= "<INPUT TYPE=HIDDEN NAME=\"subject\" VALUE=\"".$subject."\">";
+      }
+      if (!empty($body)) {
+        $txt.= "<INPUT TYPE=HIDDEN NAME=\"body\" VALUE=\"".$body."\">";
+      }
+      $txt.= "<INPUT TYPE=HIDDEN NAME=\"replysign\" VALUE=\"".$replysign."\">";
+      $txt.= "<BR><CENTER>";
+      $txt.= "<font color=#FF0000>";
+      while (list($key,$val)=each($MES)) {
+        $txt.= $val."<br>";
+      }
+      $txt.= "</font>";
+      $txt.= "<INPUT TYPE=SUBMIT VALUE=\"戻る\">";
+      $txt.= "</CENTER>";
+      $txt.= "</FORM>";
+    } else {
+      // 正常時
+      $returl = "/i/bbs/board.phtml";
+      $txt.= "<FORM ACTION=\"$returl\" METHOD=GET>";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=$ms>";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=bid VALUE=$bid>";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=p VALUE=$p>";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=q VALUE=$q>";
+      $txt.= "<BR><CENTER>";
+      $txt.= "登録完了<BR>";
+      $txt.= "<BR>";
+      $txt.= "<INPUT TYPE=SUBMIT VALUE=\"一覧へ\">";
+      $txt.= "</CENTER>";
+      $txt.= "</FORM>";
+    }
+  }
+  include ("../../footer.inc.php");
+?>

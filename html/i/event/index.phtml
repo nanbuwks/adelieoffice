@@ -1,0 +1,249 @@
+<?php
+	include ("../../config.inc.php"); include ("../../lib.inc.php");
+	include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+	$pagetitle = "イベント ";
+	if ($s == ""){
+		$pagetitle .= "登録";
+	} else {
+		$sql = "select * from events where seqno=".$s;
+		$res = pg_query($conn,$sql);
+		if (pg_num_rows($res)>0) {
+			$row = pg_fetch_array($res,0);
+			$pagetitle .= date("m/d ",date2timestamp($row["datefrom"]));
+			if ($row["timefrom"]!=""){
+				$pagetitle .= " ".date("H:i",datetime2timestamp($row["timefrom"]));
+			}
+			$pagetitle .= "〜";
+		}
+	}
+
+	include "../header.inc.php";
+
+	// エラー判定
+	if ($login) {
+		$sql = "select * from users where id='".$login_id."'";
+		$res = pg_query($conn, $sql);
+		if (pg_num_rows($res)>0) {
+			$row = pg_fetch_array($res,0);
+		}
+		
+		// 既存データの読み込み
+		if (!empty($s)){
+			$sql = "select * from events where seqno=".$s;
+			$res = pg_query($conn,$sql);
+			$cnt = pg_num_rows($res);
+			if ($cnt>0) {
+				$row = pg_fetch_array($res,0);
+				
+				$user_id           = $row["user_id"];
+				$create_user_id    = $row["create_user_id"];
+				
+				$seqno             = $row["seqno"];
+				
+				$shareflag         = $row["shareflag"];
+				$id_to             = $row["sharelist"];
+				
+				$kind              = $row["kind"];
+				$title             = $row["title"];
+				$note              = $row["note"];
+				
+				$frstamp           = date2timestamp($row["datefrom"]);
+				$fry               = date("Y",$frstamp);
+				$frm               = date("m",$frstamp);
+				$frd               = date("d",$frstamp);
+				
+				$tostamp           = date2timestamp($row["dateto"]);
+				$toy               = date("Y",$tostamp);
+				$tom               = date("m",$tostamp);
+				$tod               = date("d",$tostamp);
+				
+				if ($row["timefrom"]==""){
+					$frh = "-1";
+					$fri = "-1";
+					#          $frh = ""; // 開始時刻の入力が「INPUT TYPE="TEXT"」時に利用
+					#          $fri = ""; // 開始時刻の入力が「INPUT TYPE="TEXT"」時に利用
+				} else {
+					$frhm   = preg_split(" ",$row["timefrom"]);
+					$frtime = preg_split(":",$frhm[1]);
+					$frh = $frtime[0];
+					$fri = $frtime[1];
+				}
+				if ($row["timeto"]==""){
+					$toh = "-1";
+					$toi = "-1";
+					#          $toh = ""; // 終了時刻の入力が「INPUT TYPE="TEXT"」時に利用
+					#          $toi = ""; // 終了時刻の入力が「INPUT TYPE="TEXT"」時に利用
+				} else {
+					$tohm   = preg_split(" ",$row["timeto"]);
+					$totime = preg_split(":",$tohm[1]);
+					$toh = $totime[0];
+					$toi = $totime[1];
+				}
+				
+				$opensign  = $row["opensign"];
+				$viewsign  = $row["viewsign"];
+			}
+		}
+
+		if (sizeof($MES)==0 && !empty($user_id)) {
+			// user名の取得
+			$user_name = get_first("users","name_ryaku","id='".$user_id."'","不明または削除");
+		}
+		
+		if (sizeof($MES)>0) {
+			// エラー時処理
+			$txt.= "<FONT COLOR=#FF0000>";
+			while (list($key,$val)=each($MES)) {
+				$txt.= $val."<BR>";
+			}
+			$txt.= "</FONT>";
+			
+			if($p=="monthly") {
+				$returl = "/i/sche/";
+			} elseif($p=="weekly") {
+				$returl = "/i/sche/";
+			} elseif($p=="daily") {
+				$returl = "/i/sche/";
+			} else {
+				$returl = "/i/sche/";
+			}
+		} else {
+			// ここから正常処理
+			#$txt.= "<INPUT TYPE=HIDDEN NAME=sn value=$sn>";
+			#$txt.= "<INPUT TYPE=HIDDEN NAME=uid value=$uid>";
+			#$txt.= "<INPUT TYPE=HIDDEN NAME=r value=$r>";
+			#if (!empty($s)) $txt.= "<INPUT type=hidden name=s value=$s>";
+			#if (!empty($id_to)) $txt.= "<INPUT type=hidden name=id_to value=\"$id_to\">";
+			
+			// 参加者用データ表示
+			$txt.= "担当:";
+			$sql_user = "SELECT * FROM users WHERE id='".$user_id."'";
+			$res_user = pg_exec($conn,$sql_user);
+			$cnt_user = pg_num_rows($res_user);
+			if ($cnt_user==0) {
+				$txt.= "不明";
+			} else {
+				$row_user = pg_fetch_array($res_user,0);
+				$username = $row_user["name_ryaku"];
+				if (trim($username)=="") $username = $row_user["name"];
+				
+				$usermail = $row_user["email_sub"];
+				if (trim($usermail)=="") $usermail = $row_user["email"];
+				
+				if (trim($usermail)!="") $txt.= "<A HREF=\"mailto:".$usermail."\">";
+				$txt.= $username;
+				if (trim($usermail)!="") $txt.= "</A>";
+				
+				if (trim($row_user["email"])!="" && $usermail != $row_user["email"]) {
+					$txt.= "<A HREF=\"mailto:".$row_user["email"]."\">";
+					echo_emoji("pc");
+					$txt.= "</A>";
+				}
+				if (trim($row_user["handy"])!="") {
+					$txt.= "<A HREF=\"tel:".$row_user["handy"]."\">";
+					echo_emoji("mobilephone");
+					$txt.= "</A>";
+				}
+			}
+			$txt.= "<BR>";
+			if ($create_user_id != "" && $user_id != $create_user_id) { // 自身の場合は表示しない
+			$txt.= "登録:";
+			$sql_user = "SELECT * FROM users WHERE id='".$create_user_id."'";
+			$res_user = pg_exec($conn,$sql_user);
+			$cnt_user = pg_num_rows($res_user);
+			if ($cnt_user==0) {
+				$txt.= "不明";
+			} else {
+				$row_user = pg_fetch_array($res_user,0);
+				$username = $row_user["name_ryaku"];
+				if (trim($username)=="") $username = $row_user["name"];
+				
+				$usermail = $row_user["email_sub"];
+				if (trim($usermail)=="") $usermail = $row_user["email"];
+				
+				if (trim($usermail)!="") $txt.= "<A HREF=\"mailto:".$usermail."\">";
+				$txt.= $username;
+				if (trim($usermail)!="") $txt.= "</A>";
+				
+				if (trim($row_user["email"])!="" && $usermail != $row_user["email"]) {
+					$txt.= "<A HREF=\"mailto:".$row_user["email"]."\">";
+					echo_emoji("pc");
+					$txt.= "</A>";
+				}
+				if (trim($row_user["handy"])!="") {
+					$txt.= "<A HREF=\"tel:".$row_user["handy"]."\">";
+					echo_emoji("mobilephone");
+					$txt.= "</A>";
+				}
+			}
+				$txt.= "<BR>";
+			}
+			
+			$txt.= "日時:<BR>";
+			$txt.= "&nbsp;";
+			if (date("Y")<>$fry) $txt.= $fry."/";
+			$txt.=f ("%02d",$frm);
+			$txt.= "/";
+			$txt.=f ("%02d",$frd);
+			
+			$txt.= "(<FONT COLOR=".$wcolor[date("w",$frstamp)].">".$wname[date("w",$frstamp)]."</FONT>)";
+			if (($frh==-1) && $frstamp!=$tostamp) {
+				$txt.= "〜";
+			} else {
+				if (($frh!=-1 && $frh!=-1) || ($toh!=-1 && $toh!=-1)) {
+					$txt.= "<BR>&nbsp;";
+				}
+				if ($frh!=-1 && $frh!=-1) {
+					$txt.=f ("%02d",$frh);
+					$txt.= ":";
+					$txt.=f ("%02d",$fri);
+				}
+				if (($frh!=-1 && $frh!=-1) || ($toh!=-1 && $toh!=-1)) {
+					$txt.= "〜";
+				}
+			}
+			if ($frstamp==$tostamp && ($toh!=-1 && $toh!=-1)) {
+				$txt.=f ("%02d",$toh);
+				$txt.= ":";
+				$txt.=f ("%02d",$toi);
+			}
+			
+			if ($frstamp<>$tostamp) {
+				$txt.= "<BR>";
+				$txt.= "&nbsp;";
+				if ($toy<>$fry) $txt.= $fry."/";
+				$txt.=f ("%02d",$tom);
+				$txt.= "/";
+				$txt.=f ("%02d",$tod);
+				$txt.= "(<FONT COLOR=".$wcolor[date("w",$tostamp)].">".$wname[date("w",$tostamp)]."</FONT>)";
+				if ($toh!=-1 && $toh!=-1){
+					$txt.= "<BR>&nbsp;";
+					$txt.=f ("%02d",$toh);
+					$txt.= ":";
+					$txt.=f ("%02d",$toi);
+				}
+			}
+			$txt.= "<BR>";
+
+			$title = mb_convert_kana($title,"ak","EUC-JP");
+			$txt.= "タイトル:".$title;
+			$txt.= "<BR>";
+			$txt.= "<hr size="0">";
+			$note = mb_convert_kana($note,"ak","EUC-JP");
+			$txt.= "内容:";
+			if (strlen($note)>200) {
+				$txt.= "<FONT COLOR=#FF0000>文字数オーバー</FONT><BR>";
+			}
+			$txt.= "<BR>&nbsp;";
+			if (strlen($note)>200) {
+				$txt.= mb_strcut($note,0,200,"EUC-JP");
+				$txt.= "<DIV ALIGN=RIGHT>⇒ <A HREF=\"./note.phtml?sn=$sn&uid=".$uid."&s=$s&p=$p&y=$y&m=$m&d=$d\">全体表示</A></DIV>";
+			} else {
+				$txt.= $note;
+				$txt.= "<BR>";
+			}
+		}
+	}
+	include "../footer.inc.php";
+?>

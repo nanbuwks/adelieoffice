@@ -1,0 +1,61 @@
+<?php
+  include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+  include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+  $pagetitle = "リンク削除";
+  include ("../../header.inc.php");
+
+  ## 削除処理
+  if (login && sizeof($MES)==0) {
+    if (empty($_REQUEST["s"])) {
+      $MES[] = "削除するリンクデータを選択して下さい";
+      $back = "top";
+    } else {
+      $s = $_REQUEST["s"];
+      if (!empty($_REQUEST["p"])) { $p = $_REQUEST["p"]; }
+      $sql_chk = "SELECT * FROM links WHERE type='$agenttype' AND user_id='$login_id' AND keitaisign='t' AND seqno=$s";
+      $res_chk = pg_query($conn,$sql_chk);
+      if (pg_num_rows($res_chk)>0){
+        $sql = "DELETE FROM links WHERE type='$agenttype' AND user_id='$login_id' AND keitaisign='t' AND seqno=$s";
+        $res = pg_query($conn,$sql);
+        if ($res==false) {
+          $MES[] = "削除出来ませんでした";
+        }
+      } else {
+        $MES[] = "既に削除されています";
+        $back = "top";
+      }
+    }
+  }
+
+  if (sizeof($MES)>0) {
+    ## エラー時
+    $txt.= "<FONT COLOR=#FF0000>";
+    while (list($key,$val)=each($MES)) {
+      $txt.= $val."<BR>";
+    }
+    $txt.= "</FONT><BR>";
+    if ($back=="top") {
+      $txt.= "<FORM ACTION=\"../\" METHOD=POST>";
+    } else {
+      $txt.= "<FORM ACTION=\"../add/\" METHOD=POST>";
+    }
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+    if (!empty($s)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"s\" value=\"$s\">"; }
+    if (!empty($p)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"p\" value=\"$p\">"; }
+    $txt.= "<CENTER><INPUT TYPE=SUBMIT VALUE=\"戻る\"></CENTER>";
+    $txt.= "</FORM><BR>";
+  } else {
+    ## 正常処理
+    $txt.= "<FORM ACTION=\"../$serial\" METHOD=POST>";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"$p\">";
+    $txt.= "<CENTER><BR>";
+    $txt.= "削除完了&emojimagglass;";
+    $txt.= "<BR><BR><INPUT TYPE=SUBMIT VALUE=\"戻る\">";
+    $txt.= "</CENTER>";
+    $txt.= "</FORM><BR>";
+  }
+
+  include("../../footer.inc.php");
+?>

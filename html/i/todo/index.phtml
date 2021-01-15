@@ -1,0 +1,102 @@
+<?php
+  include ("../../config.inc.php"); include ("../../lib.inc.php");
+  include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+  $pagetitle = "備忘録";
+  include ("../header.inc.php");
+
+  // エラーチェック
+  if ($login == false) {
+    $MES[] = "先に、ログインしてください ⇒ <A HREF=\"".$toppath."/\">ログインページへ</A>";
+  } else {
+    if (trim($login_id) == "") {
+      $MES[] = "ユーザーIDが正しくありません";
+    } else {
+      $sql = "SELECT * FROM users WHERE id='".$login_id."'";
+      $res = pg_query($conn, $sql);
+
+      if (pg_num_rows($res) < 1) {
+        $MES[] = "ユーザーIDが正しくありません".$sql;
+      } else {
+        $row = pg_fetch_array($res,0);
+      }
+    }
+  }
+
+  if (sizeof($MES)==0) {
+    $txt = "備忘録&emojibulb;";
+    $txt.= "<hr size=\"0\">\n";
+
+    $sql = "SELECT * FROM todos WHERE user_id='$login_id' ORDER BY seqno desc";
+    $res = pg_query($conn,$sql);
+    $cnt = pg_num_rows($res);
+
+    // 改ページシステム
+    $linkstr = "./index.phtml";
+    $rows = 9;
+    if ($p<1) { $p = 1; }
+    $s_row = ($p-1) * $rows;
+    $e_row = $p * $rows - 1;
+    if ($e_row>$cnt-1) { $e_row = $cnt-1; }
+    if ($cnt-1>$e_row) { $nextpage = true; }
+    $allpages = floor(($cnt-1)/$rows)+1;
+    if ($allpages>1) {
+      $r = 0;
+      $s_p = $p - 4;
+      $e_p = $p + 4;
+      if ($s_p<1) {
+        $r = 1-$s_p;
+        $s_p = $s_p + $r;
+        $e_p = $e_p + $r;
+      } elseif ($e_p>$allpages) {
+        $r = $e_p - $allpages;
+        $s_p = $s_p - $r;
+        $e_p = $e_p - $r;
+      }
+      if ($s_p < 1) { $s_p = 1; }
+      if ($e_p > $allpages) { $e_p = $allpages; }
+      if ($p>1) {
+        $backlink = "";
+        $backlink.= "<DIV ALIGN=CENTER>";
+        $backlink.= "&lt;<A HREF=\"".$linkstr."&p=".($p-1)."\">前の".$rows."件</A>&gt;";
+        $backlink.= "</DIV>";
+      }
+      if ($nextpage) {
+        $nextlink = "";
+        $nextlink.= "<DIV ALIGN=CENTER>";
+        $nextlink.= "&lt;<A HREF=\"".$linkstr."&p=".($p+1)."\">次の".$rows."件</A>&gt;";
+        $nextlink.= "</DIV>";
+      }
+    }
+
+    ## 前ページリンク
+    if ($p>1) { $txt.= $backlink; }
+
+    ## 各行表示
+    if ($cnt>0) {
+      $c = 0;
+      for ($i=$s_row;$i<=$e_row;$i++) {
+        $c++;
+        $row = pg_fetch_array($res,$i);
+        $subject = mb_convert_kana($row["subject"],"ak","EUC-JP");
+        $txt.= "&emoji".$c.";<A HREF=\"./add/$serial&p=$p&s=".$row["seqno"]."\" $accesskey=$c>$subject</A><BR>";
+        $txt.= "(".date("m/d H:i",datetime2timestamp($row["updatestamp"])).")<BR>";
+      }
+    } else {
+      $txt.= "未登録";
+    }
+
+    ## 次ページリンク
+    if ($nextpage=="t") { $txt.= $nextlink; }
+
+    ## 新規作成リンク
+    $txt.= "<hr size=\"0\">";
+    $txt.= "<DIV ALIGN=RIGHT>";
+    $txt.= "&emoji0;<A HREF=\"./add/$serial\" $accesskey=0>";
+    $txt.= "新規メモ</A>";
+    $txt.= "</DIV>";
+  }
+
+  include "../detail.inc.php";
+  include "../footer.inc.php";
+?>

@@ -1,0 +1,345 @@
+<?php
+  include "../config.inc.php"; include "../lib.inc.php";
+  include "../language.inc.php";
+
+  // 動作保存用Cookie
+  if (!empty($new_type)) {
+		$headertext .= "Set-Cookie: mail_type=".$new_type."; path=/; expires=".gmdate("l, d-M-Y H:i:s",time()+15552000)." GMT;\n";
+		$mail_type = $new_type;
+  } else { if (empty($mail_type) or $mail_type=="") { $mail_type = "to"; } }
+
+  if ($mail_search=="t") {
+		$headertext .= "Set-Cookie: mail_keyword=".$new_keyword."; path=/;\n";
+		$mail_keyword = $new_keyword;
+  }
+  if (!empty($viewsort)) {
+		$headertext .= "Set-Cookie: mail_sort=".$viewsort."; path=/;\n";
+		$mail_sort = $viewsort;
+  } else { if (empty($mail_sort) or $mail_sort=="") { $mail_sort = "desc"; } }
+
+  if ($mail_search=="t") {
+		$headertext .= "Set-Cookie: mail_keyword=".textsafe(urlencode($new_keyword))."; path=/;\n";
+		$mail_keyword = textsafe($new_keyword);
+  }
+
+  if ($_GET["mode"] == "dlogin" && !empty($_GET["n"]) && !empty($_GET["sn"])) {
+		header("Location: ".$access.$domain."/mail/add/?n=$n");
+		exit;
+  }
+
+	// 既定値
+	$p = $_GET["p"];
+	if (empty($p) || $p=="" || !is_numeric($p)) $p = 1;
+	if (empty($mail_rows) || !is_numeric($mail_rows)) $mail_rows = 20;
+
+  $linktext  = "<A HREF=\"../\" CLASS=\"BAR\">トップページ</A> &gt; ";
+  $linktext .= "<FONT COLOR=#FFFF00>伝言メモ</FONT>";
+
+  include ("../header.inc.php");
+
+	$func = $_GET["func"];
+
+  if ($login && sizeof($MES)==0) {
+		// 処理
+		if (!empty($func)) {
+			if ($func=="allreaded") {
+				if ($mail_type=="from") {
+				  $sql = "SELECT seqno FROM mail LEFT JOIN (SELECT seqno as resno FROM mail_res WHERE user_id='".$login_id."') as res ON resno = seqno WHERE user_id='".$login_id."' AND \"from\"='$login_id' AND resno is null;";
+				} else {
+				  $sql = "SELECT seqno FROM mail LEFT JOIN (SELECT seqno as resno FROM mail_res WHERE user_id='".$login_id."') as res ON resno = seqno WHERE user_id='".$login_id."' AND \"from\"<>'$login_id' AND resno is null;";
+				}
+		  	$res = pg_query($conn,$sql);
+			  $cnt = pg_num_rows($res);
+			  if ($cnt>0) {
+		    	for($i=0;$i<$cnt;$i++) {
+			      $row = pg_fetch_array($res,$i);
+
+			      if (get_first("mail_res","seqno","seqno=".$row["seqno"]." AND user_id='$login_id'",0)==0) {
+			        $sql = "INSERT INTO mail_res (seqno,user_id,createstamp) VALUES (".$row["seqno"].",'$login_id','now')";
+		  	      pg_query($conn,$sql); // 既読処理
+			      }
+			    }
+			  }
+			}
+		}
+
+	  include ("./menu.inc.php");
+
+		// 表示はここから
+		$pagetext .= "<SCRIPT LANGUAGE=\"JavaScript\">\n";
+		$pagetext .= "<!--\n";
+		$pagetext .= "  function delConf() {\n";
+		$pagetext .= "		if(confirm(\"全ての";
+		if ($mail_type=="from") { $pagetext .= "送信"; } else { $pagetext .= "受信"; }
+		$pagetext .= "メモを削除しますか？\\n注:一度削除した伝言メモを戻すことはできません。\")) {\n";
+		$pagetext .= "			if(confirm(\"本当によろしいですか？\")) {\n";
+		$pagetext .= "				window.open('./del/?type=".$mail_type."&mode=all','_self');\n";
+		$pagetext .= "		 }\n";
+		$pagetext .= "		}\n";
+		$pagetext .= "  }\n";
+		$pagetext .= "  function sequence(user_id,from,to,sort) {\n";
+		$pagetext .= "		window.open('./?mode=sequence&user_id='+user_id+'&from='+from+'&to='+to+'&sort='+sort,'_self');\n";
+		$pagetext .= "  }\n";
+		$pagetext .= "// -->\n";
+		$pagetext .= "</SCRIPT>\n";
+
+		$pagetext .= "<TABLE BORDER=0 CELLSPACING=0 CELLPADDING=0 WIDTH=100%><TR>\n";
+
+		$pagetext .= "<TR><TD ALIGN=RIGHT>";
+		$pagetext .= "<A HREF=\"./add/\"><IMG SRC=\"../image/mailadd.gif\" BORDER=0 WIDTH=14 HEIGHT=14 ALIGN=ABSMIDDLE ALT=\"icon\">新しいメール</A>";
+		$pagetext .= "&nbsp;<A HREF=\"./?func=allreaded&p=$p\"><IMG SRC=\"../image/readed.gif\" WIDTH=14 HEIGHT=14 BORDER=0 ALIGN=ABSMIDDLE ALT=\"icon\">全て既読</A>";
+		$pagetext .= "&nbsp;<A HREF=\"#\" ONCLICK=\"delConf()\"><IMG SRC=\"../image/eraser.gif\" WIDTH=14 HEIGHT=14 BORDER=0 ALIGN=ABSMIDDLE ALT=\"icon\">全て削除</A>";
+		$pagetext .= "</TD></TR>";
+
+#		$pagetext .= "<TH ALIGN=LEFT VALIGN=MIDDLE>";
+#		if ($mail_type=="to") {
+#			$pagetext .= "&nbsp;<IMG SRC=\"./image/recv.gif\" WIDTH=13 HEIGHT=14 BORDER=0 ALT=\"icon\">&nbsp;受信した伝言";
+#		} else {
+#			$pagetext .= "&nbsp;<IMG SRC=\"./image/send.gif\" WIDTH=14 HEIGHT=14 BORDER=0 ALT=\"icon\">&nbsp;送信した伝言";
+#		}
+#		$pagetext .= "</TH>";
+		$pagetext .= "<FORM><TD ALIGN=RIGHT VALIGN=MIDDLE>";
+		$pagetext .= "<INPUT TYPE=RADIO NAME=\"viewsort\"";
+		if ($mail_sort=="asc") {
+			$pagetext .= " CHECKED";
+		}
+		$pagetext .= ">昇順";
+		$pagetext .= "&nbsp;";
+		$pagetext .= "<INPUT TYPE=RADIO NAME=\"viewsort\"";
+		if ($mail_sort=="desc") {
+			$pagetext .= " CHECKED";
+		}
+		$pagetext .= ">降順";
+		$pagetext .= "&nbsp;</TD></FORM>";
+		$pagetext .= "</TR>\n";
+		$pagetext .= "</TABLE>\n";
+
+		$pagetext .= "<table width=100% border=0 cellpadding=0 cellspacing=0>\n";
+		$pagetext .= "<INPUT TYPE=\"HIDDEN\" NAME=\"type\" VALUE=\"to\">\n";
+
+		if ($mail_type=="to") {
+#			$sql = "SELECT * FROM mail WHERE user_id='$login_id' AND \"to\"~*'(^|,)$login_id(,|$)' ORDER BY createstamp desc";
+			$sql = "SELECT * FROM mail WHERE user_id='$login_id' AND \"from\"!='$login_id' ORDER BY createstamp desc";
+		} else {
+			$sql = "SELECT * FROM mail WHERE user_id='$login_id' AND \"from\"='$login_id' ORDER BY createstamp desc";
+		}
+		$res = pg_query($conn,$sql);
+		$cnt = pg_num_rows($res);
+		
+		$pagetext .= "<tr><td width=100%>\n";
+
+		$pagetext .= "<TABLE WIDTH=100% BORDER=0 CELLPADDING=3 CELLSPACING=0 BGCOLOR=#CCCCCC>\n";
+		$pagetext .= "<TR BGCOLOR=#999999 HEIGHT=22>\n";
+		$pagetext .= "<TH ALIGN=LEFT NOWRAP><FONT COLOR=#FFFFFF>内容</TH>\n";
+		if ($mail_type=="to") {
+			$pagetext .= "<TH ALIGN=LEFT NOWRAP><FONT COLOR=#FFFFFF>差出人</TH>\n";
+		} else {
+			$pagetext .= "<TH ALIGN=LEFT NOWRAP><FONT COLOR=#FFFFFF>宛先</TH>\n";
+		}
+		$pagetext .= "<TH ALIGN=CENTER NOWRAP WIDTH=100><FONT COLOR=#FFFFFF>";
+		if ($mail_type=="to") {
+			$pagetext .= "受信日時";
+		} else {
+			$pagetext .= "送信日時";
+		}
+		$pagetext .= "</TH>\n";
+		$pagetext .= "</TR>\n";
+
+		if(pg_num_rows($res)==0){
+			$pagetext .= "<TR HEIGHT=31><td align=center colspan=3 bgcolor=#FFFFFF>伝言はありません</td></tr>\n";
+		}
+
+		// 表示
+		$s_row = ($p-1) * $mail_rows;
+		$e_row = $p * $mail_rows - 1;
+		if ($e_row>$cnt-1) {$e_row = $cnt-1;}
+		if ($cnt-1>$e_row) {$nextpage = true;}
+		$allpages = floor(($cnt-1)/$mail_rows)+1;
+
+		for($i=$s_row;$i<=$e_row;$i++){
+			$row = pg_fetch_array($res,$i);
+
+			// bgcolor変更
+			if ($td_flg == false) { $tdcolor = $bg_dark;  $td_flg = true;  }
+			else									{ $tdcolor = $bg_light; $td_flg = false; }
+			// メモ
+			$pagetext .= "<TR BGCOLOR=$tdcolor>\n";
+			$pagetext .= "<INPUT TYPE=HIDDEN NAME=\"seqno[".$i."]\" VALUE=\"".$row["seqno"]."\">\n";
+
+			$pagetext .= "<TD VALIGN=TOP WIDTH=55%>";
+			$pagetext .= "<table border=0 cellpadding=0 cellspacing=0 width=100%><tr>\n";
+			$pagetext .= "<td valign=top align=left width=18 nowrap>";
+			$pagetext .= "<A HREF=\"./view.phtml?n=".$row["seqno"]."\">";
+			if ($row["priority"]==1) {
+				$pagetext .= "<FONT COLOR=#FF0000>";
+			} elseif($row["priority"]==2) {
+				$pagetext .= "<FONT COLOR=#FF6600>";
+			} else {
+				$pagetext .= "<FONT COLOR=#FFEE00>";
+			}
+			$pagetext .= "●</A>&nbsp;</td>";
+			$pagetext .= "<td valign=top align=left>";
+			$pagetext .= "<A HREF=\"./view.phtml?n=".$row["seqno"]."\">";
+
+			if ($row["address_seqno"]>0) {
+				$sql_addr = "SELECT * FROM address WHERE seqno=".$row["address_seqno"];
+				$res_addr = pg_query($conn,$sql_addr);
+				$cnt_addr = pg_num_rows($res_addr);
+				if ($cnt_addr>0) {
+					$row_addr = pg_fetch_array($res_addr,0);
+#					$pagetext .= "<A HREF=\"../address/edit/?s=".$row["address_seqno"]."\">";
+					$corp_name = $row_addr["corp_name"];
+					$corp_name = ereg_replace("株式会社","",$corp_name);
+					$corp_name = ereg_replace("有限会社","",$corp_name);
+					$corp_name = ereg_replace("合資会社","",$corp_name);
+					$corp_name = ereg_replace("合名会社","",$corp_name);
+					$corp_name = ereg_replace("財団法人","",$corp_name);
+					$corp_name = ereg_replace("社団法人","",$corp_name);
+					$corp_name = ereg_replace("学校法人","",$corp_name);
+					$corp_name = ereg_replace("宗教法人","",$corp_name);
+					$corp_name = ereg_replace("特定非営利活動法人","",$corp_name);
+					$corp_name = ereg_replace("NPO法人","",$corp_name);
+					$corp_name = ereg_replace("社会福祉法人","",$corp_name);
+					$corp_name = ereg_replace("公益法人","",$corp_name);
+					$corp_name = ereg_replace("医療法人","",$corp_name);
+					$corp_name = ereg_replace("事業協同組合","",$corp_name);
+					$corp_name = ereg_replace("協同組合連合会","",$corp_name);
+					$corp_name = ereg_replace("企業組合","",$corp_name);
+					$corp_name = ereg_replace("協業組合","",$corp_name);
+					$corp_name = ereg_replace("振興組合","",$corp_name);
+					$corp_name = trim($corp_name);
+					$corp_name = mberegi_replace("　","",$corp_name);
+					$pagetext .= $corp_name." ";
+					$pagetext .= $row_addr["person_name"];
+					$pagetext .= "様より<BR>";
+#					$pagetext .= "</A> 様より<BR>";
+				}
+			}
+
+			if ($row["subject"]!="") {
+				$w_body = view_textsafe($row["subject"]);
+#				$w_body = str_link($w_body);
+			} else {
+				$w_body = str_replace("\n","",$row["body"]);
+#				$w_body = "(表題なし)";
+			}
+			$w_body = mb_strcut($w_body,0,60);
+
+			if ($mail_keyword!="") {
+				$w_body = str_highlight($mail_keyword,$w_body);
+			}
+
+			if (get_count("mail_res","seqno=".$row["seqno"]." AND user_id='$login_id'")==0) {
+				$pagetext .= "<FONT COLOR=#FF0033>";
+			}
+
+			$pagetext .= $w_body."<BR>";
+
+			$pagetext .= "</A>";
+			$pagetext .= "</TD></TR></TABLE>\n";
+			$pagetext .= "</TD>\n";
+
+			$pagetext .= "<TD VALIGN=TOP WIDTH=30%>";
+			if ($mail_type=="to") {
+				$mailfroms = preg_split(",",$row["from"]);
+				if (sizeof($mailfroms)>0) {
+					for ($j=0;$j<sizeof($mailfroms);$j++) {
+						$mailaddr = $mailfroms[$j];
+						if (trim($mailaddr)!="") {
+							$sql_from = "SELECT * FROM users WHERE id='".$mailaddr."'";
+							$res_from = pg_query($conn,$sql_from);
+							$cnt_from = pg_num_rows($res_from);
+							if ($cnt_from>0) {
+								// ユーザーID時
+								$row_from = pg_fetch_array($res_from,0);
+								$pagetext .= "<A HREF=\"../member/?id=".$mailaddr."\">".$row_from["name_ryaku"]."</A>";
+								if ($row_from["email"]!="") {
+									$pagetext .= " &lt;<A HREF=\"mailto:".$row_from["email"]."\">".$row_from["email"]."</A>&gt;";
+								}
+							} else {
+								// ユーザー以外時
+								$pagetext .= str_link($mailaddr);
+							}
+							if (($j+1)<sizeof($mailfroms)) $pagetext .= ", ";
+						}
+					}
+				}
+			} else {
+				$mailtos = preg_split(",",$row["to"]);
+				if (sizeof($mailtos)>0) {
+					for ($j=0;$j<sizeof($mailtos);$j++) {
+						$mailaddr = $mailtos[$j];
+						if (trim($mailaddr)!="") {
+							$sql_to = "SELECT * from users WHERE id='".$mailaddr."'";
+							$res_to = pg_query($conn,$sql_to);
+							$cnt_to = pg_num_rows($res_to);
+							if ($cnt_to>0) {
+								// ユーザーID時
+								$row_to = pg_fetch_array($res_to,0);
+								$pagetext .= "<A HREF=\"../member/?id=".$mailaddr."\">".$row_to["name_ryaku"]."</A>";
+								if ($row_to["email"]!="") {
+									$pagetext .= " &lt;<A HREF=\"mailto:".$row_to["email"]."\">".$row_to["email"]."</A>&gt;";
+								}
+							} else {
+								// ユーザー以外時
+								$pagetext .= str_link($mailaddr);
+							}
+							if (($j+1)<sizeof($mailtos)) $pagetext .= ", ";
+						}
+					}
+				}
+			}
+			$pagetext .= "</TD>\n";
+
+			$pagetext .= "<TD ALIGN=CENTER VALIGN=TOP NOWRAP WIDTH=15%>";
+			$pagetext .= date("m月d日",datetime2timestamp($row["sendstamp"]))." ".date("H:i",datetime2timestamp($row["sendstamp"]));
+			$pagetext .= "</TD>\n";
+
+#			$pagetext .= "</tr>\n";
+#			$pagetext .= "</table>\n";
+
+		}
+		$pagetext .= "</td></TR></TABLE>\n";
+		$pagetext .= "<BR>\n";
+
+		// ページ移動リンク(下段)
+		$pagetext .= "<TR>";
+		if ($adr_type=="public") {
+			$pagetext .= "<TD ALIGN=CENTER COLSPAN=5>";
+		} else {
+			$pagetext .= "<TD ALIGN=CENTER COLSPAN=4>";
+		}
+		$pagetext .= "&nbsp;".eregi_replace("#",strval($allpages),$text_pages)."&nbsp;";
+		for ($i=1;$i<=floor(($cnt-1)/$mail_rows)+1;$i++){
+			if ($p-5<$i && $p+5>$i) {
+				if ($p!=$i) {
+					$pagetext .= "[<A HREF=\"./?p=".$i."\">".$i."</A>]";
+				} else {
+					$pagetext .= "[".$i."]";
+				}
+				$pagetext .= "&nbsp;";
+			} else {
+				if ($p-5==$i) {
+					$pagetext .= "<A HREF=\"./?p=".$i."\">&lt;</A>";
+				} elseif ($p+5==$i) {
+					$pagetext .= "<A HREF=\"./?p=".$i."\">&gt;</A>";
+				}
+			}
+		}
+		$pagetext .= "&nbsp;";
+
+		if ($p>1) {
+			$pagetext .= "[<A HREF=\"./?p=".($p-1)."\">".eregi_replace("#",strval($mail_rows),$text_prevpage)."</A>]";
+		}
+		$pagetext .= "&nbsp;";
+
+		if ($nextpage) {
+			$pagetext .= "[<A HREF=\"./?p=".($p+1)."\">".eregi_replace("#",strval($mail_rows),$text_nextpage)."</A>]";
+		}
+		$pagetext .= "&nbsp;</TD></TR>";
+
+  }
+
+  include ("../detail.inc.php");
+  include ("../footer.inc.php");
+?>

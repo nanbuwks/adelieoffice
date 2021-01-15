@@ -1,0 +1,117 @@
+<?php
+	include ("../../config.inc.php"); include ("../../lib.inc.php");
+	include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+	## 変数設定
+	$pagetitle = "住所録 ";
+	if (empty($type)) { $type = "C"; }
+	if ($type=="C") {
+		$pagetitle .= "会社検索";
+	} else {
+		$pagetitle .= "氏名検索";
+	}
+
+	include ("../header.inc.php");
+
+	if ($login) {
+		if ($type=="C") {
+			$txt.= "会社検索";
+		} else {
+			$txt.= "氏名検索";
+		}
+		$txt.= "<hr size=\"0\">";
+		$txt.= "<center>";
+
+		$txt.= "&emoji1;&nbsp;";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=A&s=A&t=".$type."\">あ</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=A&s=I&t=".$type."\">い</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=A&s=U&t=".$type."\">う</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=A&s=E&t=".$type."\">え</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=A&s=O&t=".$type."\">お</a>";
+		$txt.= "<br>";
+
+		$txt.= "&emoji2;&nbsp;";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=K&s=A&t=".$type."\">か</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=K&s=I&t=".$type."\">き</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=K&s=U&t=".$type."\">く</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=K&s=E&t=".$type."\">け</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=K&s=O&t=".$type."\">こ</a>";
+		$txt.= "<br>";
+
+		$txt.= "&emoji3;&nbsp;";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=S&s=A&t=".$type."\">さ</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=S&s=I&t=".$type."\">し</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=S&s=U&t=".$type."\">す</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=S&s=E&t=".$type."\">せ</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=S&s=O&t=".$type."\">そ</a>";
+		$txt.= "<br>";
+
+		$txt.= "&emoji4;&nbsp;";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=T&s=A&t=".$type."\">た</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=T&s=I&t=".$type."\">ち</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=T&s=U&t=".$type."\">つ</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=T&s=E&t=".$type."\">て</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=T&s=O&t=".$type."\">と</a>";
+		$txt.= "<br>";
+
+		$txt.= "&emoji5;&nbsp;";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=N&s=A&t=".$type."\">な</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=N&s=I&t=".$type."\">に</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=N&s=U&t=".$type."\">ぬ</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=N&s=E&t=".$type."\">ね</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=N&s=O&t=".$type."\">の</a>";
+		$txt.= "<br>";
+
+		$txt.= "&emoji6;&nbsp;";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=H&s=A&t=".$type."\">は</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=H&s=I&t=".$type."\">ひ</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=H&s=U&t=".$type."\">ふ</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=H&s=E&t=".$type."\">へ</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=H&s=O&t=".$type."\">ほ</a>";
+		$txt.= "<br>";
+
+		$txt.= "&emoji7;&nbsp;";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=M&s=A&t=".$type."\">ま</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=M&s=I&t=".$type."\">み</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=M&s=U&t=".$type."\">む</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=M&s=E&t=".$type."\">め</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=M&s=O&t=".$type."\">も</a>";
+		$txt.= "<br>";
+
+		$txt.= "&emoji8;&nbsp;";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=Y&s=A&t=".$type."\">や</a>";
+		$txt.= "&nbsp;&nbsp;";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=Y&s=U&t=".$type."\">ゆ</a>";
+		$txt.= "&nbsp;&nbsp;";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=Y&s=O&t=".$type."\">よ</a>";
+		$txt.= "<br>";
+
+		$txt.= "&emoji9;&nbsp;";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=R&s=A&t=".$type."\">ら</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=R&s=I&t=".$type."\">り</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=R&s=U&t=".$type."\">る</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=R&s=E&t=".$type."\">れ</a>";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=R&s=O&t=".$type."\">ろ</a>";
+		$txt.= "<br>";
+
+		$txt.= "&nbsp;&nbsp;&nbsp;";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=W&s=A&t=".$type."\">わ</a>";
+		$txt.= "&nbsp;&nbsp;";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=W&s=O&t=".$type."\">を</a>";
+		$txt.= "&nbsp;&nbsp;";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=N&t=".$type."\">ん</a></a>";
+		$txt.= "<br>";
+
+		$txt.= "&nbsp;&nbsp;";
+		$txt.= "<a href=\"./list.phtml".$serial."&c=Z&t=".$type."\">英数字 他</a>";
+		$txt.= "<br>";
+		$txt.= "</center>";
+
+		$txt.= "<hr size=\"0\">";
+		$txt.= "<div align=\"right\">";
+		$txt.= "&emoji0;<a href=\"./regist/".$serial."\" ".$accesskey."=0>";
+		$txt.= "新規住所</a>";
+		$txt.= "</div>";
+	}
+	include ("../footer.inc.php");
+?>

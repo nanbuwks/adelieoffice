@@ -1,0 +1,438 @@
+<?php
+  include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+  include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+  $pagetitle = "住所録";
+  include ("../../header.inc.php");
+
+  // 変数処理
+  if (!empty($corp_name))         { $corp_name = textsafe(sjis2euc(remove_emoji($corp_name))); }
+  if (!empty($corp_kana))         { $corp_kana = textsafe(sjis2euc(remove_emoji($corp_kana))); }
+  if (!empty($corp_zip))          { $corp_zip  = textsafe(sjis2euc(remove_emoji($corp_zip))); }
+  if (!empty($corp_state))  {
+    $corp_state = textsafe(sjis2euc(remove_emoji($corp_state)));
+    if ($corp_state=="--------") { $corp_state = ""; }
+  }
+  if (!empty($corp_city))         { $corp_city   = textsafe(sjis2euc(remove_emoji($corp_city))); }
+  if (!empty($corp_street))       { $corp_street = textsafe(sjis2euc(remove_emoji($corp_street))); }
+  if (!empty($corp_build))        { $corp_build  = textsafe(sjis2euc(remove_emoji($corp_build))); }
+  if (!empty($corp_tel))          { $corp_tel    = textsafe(sjis2euc(remove_emoji($corp_tel))); }
+  if (!empty($corp_fax))          { $corp_fax    = textsafe(sjis2euc(remove_emoji($corp_fax))); }
+  if (!empty($corp_url))          { $corp_url    = textsafe(sjis2euc(remove_emoji($corp_url))); }
+  if (!empty($corp_email))        { $corp_email  = textsafe(sjis2euc(remove_emoji($corp_email))); }
+  if (!empty($person_name))       { $person_name = textsafe(sjis2euc(remove_emoji($person_name))); }
+  if (!empty($person_kana))       { $person_kana = textsafe(sjis2euc(remove_emoji($person_kana))); }
+  if (!empty($person_sex))        {
+    $person_sex = textsafe(sjis2euc(remove_emoji($person_sex)));
+    if ($person_sex=="on") { $person_sex = ""; }
+  }
+  if (!empty($person_depa))       { $person_depa   = textsafe(sjis2euc(remove_emoji($person_depa))); }
+  if (!empty($person_post))       { $person_post   = textsafe(sjis2euc(remove_emoji($person_post))); }
+  if (!empty($person_dialin))     { $person_dialin = textsafe(sjis2euc(remove_emoji($person_dialin))); }
+  if (!empty($person_email))      { $person_email  = textsafe(sjis2euc(remove_emoji($person_email))); }
+  if (!empty($person_email2))     { $person_email2 = textsafe(sjis2euc(remove_emoji($person_email2))); }
+  if (!empty($birthday_Y)) {
+    $birthday_Y = textsafe(sjis2euc(remove_emoji($birthday_Y)));
+    if ($birthday_Y=="----") { $birthday_Y = ""; }
+   }
+  if (!empty($birthday_M)) {
+    $birthday_M = textsafe(sjis2euc(remove_emoji($birthday_M)));
+    if ($birthday_M=="--") { $birthday_M = ""; }
+  }
+  if (!empty($birthday_D)) {
+    $birthday_D = textsafe(sjis2euc(remove_emoji($birthday_D)));
+    if ($birthday_D=="--") { $birthday_D = ""; }
+  }
+  if (!empty($person_handy))      { $person_handy  = textsafe(sjis2euc(remove_emoji($person_handy))); }
+  if (!empty($person_zip))        { $person_zip    = textsafe(sjis2euc(remove_emoji($person_zip))); }
+  if (!empty($person_state))      { $person_state  = textsafe(sjis2euc(remove_emoji($person_state))); }
+  if (!empty($person_city))       { $person_city   = textsafe(sjis2euc(remove_emoji($person_city))); }
+  if (!empty($person_street))     { $person_street = textsafe(sjis2euc(remove_emoji($person_street))); }
+  if (!empty($person_build))      { $person_build  = textsafe(sjis2euc(remove_emoji($person_build))); }
+  if (!empty($person_tel))        { $person_tel    = textsafe(sjis2euc(remove_emoji($person_tel))); }
+  if (!empty($person_fax))        { $person_fax    = textsafe(sjis2euc(remove_emoji($person_fax))); }
+  if (!empty($kind_list))         { $kind_list     = sjis2euc($kind_list); }
+  if (!empty($comment))           { $comment       = textsafe(sjis2euc(remove_emoji($comment))); }
+
+  // エラーチェック
+  if ($login == false) {
+    $MES[] = "先に、ログインしてください ⇒ <A HREF=\"/i/\">ログインページへ</A>";
+  } else {
+    if (trim($login_id) == "") {
+      $MES[] = "ユーザーIDが正しくありません";
+    } else {
+      $sql = "select * from users where id='".$login_id."'";
+      $txt.= "<!--";
+      $res = pg_query($conn, $sql);
+      if (pg_num_rows($res)<1) {
+        $MES[] = "ユーザーIDが正しくありません".$sql;
+      } else {
+        $row = pg_fetch_array($res,0);
+      }
+      $txt.= "-->";
+    }
+  }
+
+  if ($person_email == "@") { $person_email = ""; }
+  if ($person_email2 == "@") { $person_email2 = ""; }
+
+  // エラーチェック
+  if ($person_name == "") {
+    $MES[]="氏名が入力されていません ";
+  } else {
+    if (strlen($person_name)>80) {
+      $MES[]="氏名が長すぎます 40文字以内(半角80文字)で指定してください";
+    }
+  }
+
+  if ($person_kana != "") {
+    if (strlen($person_kana)>80) {
+      $MES[]="氏名のカナヨミが長すぎます 40文字以内(半角80文字)で指定してください";
+    }
+  }
+
+  if ($person_depa != "") {
+    if (strlen($person_depa)>120) {
+      $MES[]="所属部署が長すぎます 60文字以内(半角120文字)で指定してください";
+    }
+  }
+
+  if ($person_post != "") {
+    if (strlen($person_post)>120) {
+      $MES[]="肩書き・役職が長すぎます 60文字以内(半角120文字)で指定してください";
+    }
+  }
+
+  if ($person_dialin != "") {
+    if (strlen($person_dialin)>20) {
+      $MES[]="内線・ダイヤルインが長すぎます 20文字以内で指定してください";
+    } else {
+      if (!is_tel($person_dialin)) {
+        $MES[]="内線・ダイヤルインは半角数字とハイフン[-]で指定してください";
+      }
+    }
+  }
+
+  if ($person_email != "") {
+    if (strlen($person_email)>100) {
+      $MES[]="電子メール(通常)が長すぎます 100文字以内で指定してください";
+    } else {
+      if (!is_email($person_email)) {
+        $MES[]="電子メール(通常)の指定が正しくありません";
+      }
+    }
+  }
+
+  if ($person_email2 != "") {
+    if (strlen($person_email2)>100) {
+      $MES[]="電子メール(ケータイ)が長すぎます 100文字以内で指定してください";
+    } else {
+      if (!is_email($person_email2)) {
+        $MES[]="電子メール(ケータイ)の指定が正しくありません";
+      }
+    }
+  }
+
+  if ($birthday_Y>0 && $birthday_M>0 && $birthday_D>0) {
+    if (!checkdate($birthday_M,$birthday_D,$birthday_Y)) {
+      $MES[]="生年月日の指定が正しくありません";
+    }
+  }
+
+  if ($person_handy != "") {
+    if (strlen($person_handy)>100) {
+      $MES[]="携帯電話番号が長すぎます 100文字以内で指定してください";
+    } else {
+      if (!is_tel($person_handy)) {
+        $MES[]="携帯電話番号の指定が正しくありません";
+      }
+    }
+  }
+
+  if ($person_zip != "") {
+    if (strlen($person_zip)>8) {
+      $MES[]="郵便番号が長すぎます 8文字以内で指定してください";
+    }
+  }
+
+  if ($person_city != "") {
+    if (strlen($person_city)>100) {
+      $MES[]="住所(市区郡)が長すぎます 50文字以内(半角100文字)で指定してください";
+    }
+  }
+
+  if ($person_street != "") {
+    if (strlen($person_street)>100) {
+      $MES[]="住所(町村・番地)が長すぎます 50文字以内(半角100文字)で指定してください";
+    }
+  }
+
+  if ($person_build != "") {
+    if (strlen($person_build)>100) {
+      $MES[]="住所(ビル・マンション)が長すぎます 50文字以内(半角100文字)で指定してください";
+    }
+  }
+
+  if ($person_tel != "") {
+    if (strlen($person_tel)>80) {
+      $MES[]="電話番号が長すぎます 20文字以内で指定してください";
+    }
+  }
+
+  if ($person_fax != "") {
+    if (strlen($person_fax)>80) {
+      $MES[]="FAX番号が長すぎます 20文字以内で指定してください";
+    }
+  }
+
+  // エラー無し = DBチェック
+  if (sizeof($MES)==0) {
+    $sql_address = "SELECT seqno,corp_name,person_name FROM address WHERE ";
+    if ($corp_name != "") {
+      $corp_name1 = eregi_replace("( |　)","　",$corp_name);
+      $corp_name2 = eregi_replace("( |　)"," ",$corp_name);
+      $corp_name3 = eregi_replace("( |　)","",$corp_name);
+
+      $sql_address .= "(corp_name='".db_textsafe($corp_name1)."'";
+      $sql_address .= " or corp_name='".db_textsafe($corp_name2)."'";
+      $sql_address .= " or corp_name='".db_textsafe($corp_name3)."') and ";
+    }
+    $person_name1 = eregi_replace("( |　)","　",$person_name);
+    $person_name2 = eregi_replace("( |　)"," ",$person_name);
+    $person_name3 = eregi_replace("( |　)","",$person_name);
+    $sql_address .= "(person_name='".db_textsafe($person_name1)."'";
+    $sql_address .= " or person_name='".db_textsafe($person_name2)."'";
+    $sql_address .= " or person_name='".db_textsafe($person_name3)."')";
+
+    $res_address = pg_query($conn,$sql_address);
+    $cnt_address = pg_num_rows($res_address);
+    if ($cnt_address>0) {
+      $row_address = pg_fetch_array($res_address,0);
+
+      $TempMES = "<DIV ALIGN=CENTER>";
+
+      if ($row_address["corp_name"]!="") {
+        $TempMES .= "会社名:".$row_address["corp_name"]."<BR>";
+      }
+      $TempMES .= "氏名:".$row_address["person_name"]."<BR>";
+      $TempMES .= "</DIV>";
+
+      $WMES[] = "同じ名前の登録が見つかりました<BR>".$TempMES;
+    }
+  }
+
+  // 前処理
+  if (sizeof($MES)>0 || (sizeof($WMES)>0 && $errorthrou != "true")) {
+    $txt.= "<BR>";
+    $txt.= "<CENTER><DIV ALIGN=CENTER>";
+
+    if (sizeof($MES)>0) {
+      // エラーメッセージ出力
+      $txt.= "<FONT COLOR=#FF0000><B>";
+      while (list($key,$val)=each($MES)) {
+        $txt.= $val."<BR>";
+      }
+      $txt.= "</FONT>";
+    }
+
+    if (sizeof($WMES)>0) {
+      // ワーニングメッセージ出力
+      $txt.= "<FONT COLOR=#FF0066><B>";
+      while (list($key,$val)=each($WMES)) {
+        $txt.= $val."<BR>";
+      }
+    }
+
+    $txt.= "<FORM NAME=\"error\" ACTION=\"./person.phtml\" METHOD=POST>";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=\"$ms\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=back VALUE=\"t\">";
+
+    if (!empty($corp_name))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_name\" VALUE=\"$corp_name\">"; }
+    if (!empty($corp_kana))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_kana\" VALUE=\"$corp_kana\">"; }
+    if (!empty($corp_zip))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_zip\" VALUE=\"$corp_zip\">"; }
+    if (!empty($corp_state))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_state\" VALUE=\"$corp_state\">"; }
+    if (!empty($corp_city))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_city\" VALUE=\"$corp_city\">"; }
+    if (!empty($corp_street))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_street\" VALUE=\"$corp_street\">"; }
+    if (!empty($corp_build))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_build\" VALUE=\"$corp_build\">"; }
+    if (!empty($corp_tel))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_tel\" VALUE=\"$corp_tel\">"; }
+    if (!empty($corp_fax))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_fax\" VALUE=\"$corp_fax\">"; }
+    if (!empty($corp_url))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_url\" VALUE=\"$corp_url\">"; }
+    if (!empty($corp_email))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_email\" VALUE=\"$corp_email\">"; }
+    if (!empty($person_name))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_name\" VALUE=\"$person_name\">"; }
+    if (!empty($person_kana))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_kana\" VALUE=\"$person_kana\">"; }
+    if (!empty($person_sex))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_sex\" VALUE=\"$person_sex\">"; }
+    if (!empty($person_depa))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_depa\" VALUE=\"$person_depa\">"; }
+    if (!empty($person_post))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_post\" VALUE=\"$person_post\">"; }
+    if (!empty($person_dialin)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_dialin\" VALUE=\"$person_dialin\">"; }
+    if (!empty($person_email))  { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_email\" VALUE=\"$person_email\">"; }
+    if (!empty($person_email2)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_email2\" VALUE=\"$person_email2\">"; }
+    if (!empty($birthday_Y))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"birthday_Y\" VALUE=\"$birthday_Y\">"; }
+    if (!empty($birthday_M))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"birthday_M\" VALUE=\"$birthday_M\">"; }
+    if (!empty($birthday_D))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"birthday_D\" VALUE=\"$birthday_D\">"; }
+    if (!empty($person_handy))  { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_handy\" VALUE=\"$person_handy\">"; }
+    if (!empty($person_zip))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_zip\" VALUE=\"$person_zip\">"; }
+    if (!empty($person_state))  { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_state\" VALUE=\"$person_state\">"; }
+    if (!empty($person_city))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_city\" VALUE=\"$person_city\">"; }
+    if (!empty($person_street)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_street\" VALUE=\"$person_street\">"; }
+    if (!empty($person_build))  { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_build\" VALUE=\"$person_build\">"; }
+    if (!empty($person_tel))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_tel\" VALUE=\"$person_tel\">"; }
+    if (!empty($person_fax))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_fax\" VALUE=\"$person_fax\">"; }
+    if (!empty($kind_list))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"kind_list\" VALUE=\"$kind_list\">"; }
+    if (!empty($comment))       { $txt.= "<INPUT TYPE=HIDDEN NAME=\"comment\" VALUE=\"$comment\">"; }
+
+    $txt.= "<DIV ALIGN=CENTER><INPUT TYPE=SUBMIT VALUE=\"戻る\"></DIV>";
+    $txt.= "</FORM>";
+
+    if (sizeof($MES)==0) {
+      $txt.= "<FORM ACTION=\"./other.phtml\" METHOD=POST>";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=\"$ms\">";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=errorthrou VALUE=\"true\">";
+
+    if (!empty($corp_name))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_name\" VALUE=\"$corp_name\">"; }
+    if (!empty($corp_kana))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_kana\" VALUE=\"$corp_kana\">"; }
+    if (!empty($corp_zip))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_zip\" VALUE=\"$corp_zip\">"; }
+    if (!empty($corp_state))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_state\" VALUE=\"$corp_state\">"; }
+    if (!empty($corp_city))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_city\" VALUE=\"$corp_city\">"; }
+    if (!empty($corp_street))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_street\" VALUE=\"$corp_street\">"; }
+    if (!empty($corp_build))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_build\" VALUE=\"$corp_build\">"; }
+    if (!empty($corp_tel))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_tel\" VALUE=\"$corp_tel\">"; }
+    if (!empty($corp_fax))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_fax\" VALUE=\"$corp_fax\">"; }
+    if (!empty($corp_url))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_url\" VALUE=\"$corp_url\">"; }
+    if (!empty($corp_email))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_email\" VALUE=\"$corp_email\">"; }
+    if (!empty($person_name))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_name\" VALUE=\"$person_name\">"; }
+    if (!empty($person_kana))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_kana\" VALUE=\"$person_kana\">"; }
+    if (!empty($person_sex))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_sex\" VALUE=\"$person_sex\">"; }
+    if (!empty($person_depa))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_depa\" VALUE=\"$person_depa\">"; }
+    if (!empty($person_post))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_post\" VALUE=\"$person_post\">"; }
+    if (!empty($person_dialin)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_dialin\" VALUE=\"$person_dialin\">"; }
+    if (!empty($person_email))  { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_email\" VALUE=\"$person_email\">"; }
+    if (!empty($person_email2)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_email2\" VALUE=\"$person_email2\">"; }
+    if (!empty($birthday_Y))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"birthday_Y\" VALUE=\"$birthday_Y\">"; }
+    if (!empty($birthday_M))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"birthday_M\" VALUE=\"$birthday_M\">"; }
+    if (!empty($birthday_D))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"birthday_D\" VALUE=\"$birthday_D\">"; }
+    if (!empty($person_handy))  { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_handy\" VALUE=\"$person_handy\">"; }
+    if (!empty($person_zip))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_zip\" VALUE=\"$person_zip\">"; }
+    if (!empty($person_state))  { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_state\" VALUE=\"$person_state\">"; }
+    if (!empty($person_city))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_city\" VALUE=\"$person_city\">"; }
+    if (!empty($person_street)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_street\" VALUE=\"$person_street\">"; }
+    if (!empty($person_build))  { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_build\" VALUE=\"$person_build\">"; }
+    if (!empty($person_tel))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_tel\" VALUE=\"$person_tel\">"; }
+    if (!empty($person_fax))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_fax\" VALUE=\"$person_fax\">"; }
+    if (!empty($kind_list))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"kind_list\" VALUE=\"$kind_list\">"; }
+    if (!empty($comment))       { $txt.= "<INPUT TYPE=HIDDEN NAME=\"comment\" VALUE=\"$comment\">"; }
+
+      $txt.= "<DIV ALIGN=CENTER><INPUT TYPE=SUBMIT VALUE=\"続ける\"></DIV>";
+      $txt.= "</FORM>";
+    }
+  }
+
+  if (sizeof($MES)==0 && (sizeof($WMES)==0 || (sizeof($WMES)>0 && $errorthrou=="true"))) {
+    // 正常処理
+    $txt.= "<FORM ACTION=\"./add.phtml\" METHOD=POST>";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=\"$ms\">";
+
+    if (!empty($corp_name))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_name\" VALUE=\"$corp_name\">"; }
+    if (!empty($corp_kana))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_kana\" VALUE=\"$corp_kana\">"; }
+    if (!empty($corp_zip))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_zip\" VALUE=\"$corp_zip\">"; }
+    if (!empty($corp_state))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_state\" VALUE=\"$corp_state\">"; }
+    if (!empty($corp_city))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_city\" VALUE=\"$corp_city\">"; }
+    if (!empty($corp_street))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_street\" VALUE=\"$corp_street\">"; }
+    if (!empty($corp_build))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_build\" VALUE=\"$corp_build\">"; }
+    if (!empty($corp_tel))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_tel\" VALUE=\"$corp_tel\">"; }
+    if (!empty($corp_fax))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_fax\" VALUE=\"$corp_fax\">"; }
+    if (!empty($corp_url))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_url\" VALUE=\"$corp_url\">"; }
+    if (!empty($corp_email))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_email\" VALUE=\"$corp_email\">"; }
+    if (!empty($person_name))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_name\" VALUE=\"$person_name\">"; }
+    if (!empty($person_kana))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_kana\" VALUE=\"$person_kana\">"; }
+    if (!empty($person_sex))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_sex\" VALUE=\"$person_sex\">"; }
+    if (!empty($person_depa))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_depa\" VALUE=\"$person_depa\">"; }
+    if (!empty($person_post))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_post\" VALUE=\"$person_post\">"; }
+    if (!empty($person_dialin)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_dialin\" VALUE=\"$person_dialin\">"; }
+    if (!empty($person_email))  { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_email\" VALUE=\"$person_email\">"; }
+    if (!empty($person_email2)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_email2\" VALUE=\"$person_email2\">"; }
+    if (!empty($birthday_Y))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"birthday_Y\" VALUE=\"$birthday_Y\">"; }
+    if (!empty($birthday_M))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"birthday_M\" VALUE=\"$birthday_M\">"; }
+    if (!empty($birthday_D))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"birthday_D\" VALUE=\"$birthday_D\">"; }
+    if (!empty($person_handy))  { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_handy\" VALUE=\"$person_handy\">"; }
+    if (!empty($person_zip))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_zip\" VALUE=\"$person_zip\">"; }
+    if (!empty($person_state))  { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_state\" VALUE=\"$person_state\">"; }
+    if (!empty($person_city))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_city\" VALUE=\"$person_city\">"; }
+    if (!empty($person_street)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_street\" VALUE=\"$person_street\">"; }
+    if (!empty($person_build))  { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_build\" VALUE=\"$person_build\">"; }
+    if (!empty($person_tel))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_tel\" VALUE=\"$person_tel\">"; }
+    if (!empty($person_fax))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_fax\" VALUE=\"$person_fax\">"; }
+
+    $sql_kind = "SELECT * FROM address_kind ORDER BY seqno;";
+    $res_kind = pg_query($conn,$sql_kind);
+    $cnt_kind = pg_num_rows($res_kind);
+    if ($cnt_kind>0) {
+      $txt.= "分類項目<BR>";
+      if ($kind_list != "") {
+        $kinds = preg_split("(,|\t)",$kind_list);
+      }
+      $p = 1;
+      for ($i=0;$i<$cnt_kind;$i++) {
+        $row_kind = pg_fetch_array($res_kind,$i);
+        $txt.= "<INPUT TYPE=CHECKBOX NAME=\"kind[]\" VALUE=".$row_kind["key"]."";
+        if (sizeof($kinds)>0) {
+          reset($kinds);
+          while (list($key,$val)=each($kinds)) {
+            if ($val==$row_kind["key"]) {
+              $txt.= " CHECKED";
+              break;
+            }
+          }
+        }
+        $txt.= ">".mb_convert_kana($row_kind["value"],"k")." ";
+      }
+    }
+
+    $txt.= "<BR>";
+    $txt.= "コメント<BR>";
+    $txt.= "<TEXTAREA NAME=\"comment\" ROWS=3 ".inputmode("hiragana").">$comment</TEXTAREA><BR>";
+    $txt.= "<DIV ALIGN=CENTER><INPUT TYPE=SUBMIT VALUE=\"登録\"></DIV>";
+    $txt.= "</FORM>";
+
+    // 戻り処理
+    $txt.= "<FORM ACTION=\"./person.phtml\" METHOD=POST>";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=\"$ms\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=back VALUE=\"t\">";
+
+    if (!empty($corp_name))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_name\" VALUE=\"$corp_name\">"; }
+    if (!empty($corp_kana))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_kana\" VALUE=\"$corp_kana\">"; }
+    if (!empty($corp_zip))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_zip\" VALUE=\"$corp_zip\">"; }
+    if (!empty($corp_state))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_state\" VALUE=\"$corp_state\">"; }
+    if (!empty($corp_city))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_city\" VALUE=\"$corp_city\">"; }
+    if (!empty($corp_street))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_street\" VALUE=\"$corp_street\">"; }
+    if (!empty($corp_build))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_build\" VALUE=\"$corp_build\">"; }
+    if (!empty($corp_tel))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_tel\" VALUE=\"$corp_tel\">"; }
+    if (!empty($corp_fax))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_fax\" VALUE=\"$corp_fax\">"; }
+    if (!empty($corp_url))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_url\" VALUE=\"$corp_url\">"; }
+    if (!empty($corp_email))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"corp_email\" VALUE=\"$corp_email\">"; }
+    if (!empty($person_name))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_name\" VALUE=\"$person_name\">"; }
+    if (!empty($person_kana))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_kana\" VALUE=\"$person_kana\">"; }
+    if (!empty($person_sex))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_sex\" VALUE=\"$person_sex\">"; }
+    if (!empty($person_depa))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_depa\" VALUE=\"$person_depa\">"; }
+    if (!empty($person_post))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_post\" VALUE=\"$person_post\">"; }
+    if (!empty($person_dialin)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_dialin\" VALUE=\"$person_dialin\">"; }
+    if (!empty($person_email))  { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_email\" VALUE=\"$person_email\">"; }
+    if (!empty($person_email2)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_email2\" VALUE=\"$person_email2\">"; }
+    if (!empty($birthday_Y))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"birthday_Y\" VALUE=\"$birthday_Y\">"; }
+    if (!empty($birthday_M))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"birthday_M\" VALUE=\"$birthday_M\">"; }
+    if (!empty($birthday_D))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"birthday_D\" VALUE=\"$birthday_D\">"; }
+    if (!empty($person_handy))  { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_handy\" VALUE=\"$person_handy\">"; }
+    if (!empty($person_zip))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_zip\" VALUE=\"$person_zip\">"; }
+    if (!empty($person_state))  { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_state\" VALUE=\"$person_state\">"; }
+    if (!empty($person_city))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_city\" VALUE=\"$person_city\">"; }
+    if (!empty($person_street)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_street\" VALUE=\"$person_street\">"; }
+    if (!empty($person_build))  { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_build\" VALUE=\"$person_build\">"; }
+    if (!empty($person_tel))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_tel\" VALUE=\"$person_tel\">"; }
+    if (!empty($person_fax))    { $txt.= "<INPUT TYPE=HIDDEN NAME=\"person_fax\" VALUE=\"$person_fax\">"; }
+    if (!empty($kind_list))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"kind_list\" VALUE=\"$kind_list\">"; }
+    if (!empty($comment))       { $txt.= "<INPUT TYPE=HIDDEN NAME=\"comment\" VALUE=\"$comment\">"; }
+
+    $txt.= "<DIV ALIGN=CENTER><INPUT TYPE=SUBMIT VALUE=\"戻る\"></DIV>";
+    $txt.= "</FORM>";
+  }
+  include "../../footer.inc.php";
+?>

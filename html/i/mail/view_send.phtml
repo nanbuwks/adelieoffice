@@ -1,0 +1,165 @@
+<?php
+  include ("../../config.inc.php"); include ("../../lib.inc.php");
+  include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+  $pagetitle = "送信メモ";
+  include ("../header.inc.php");
+
+  if (empty($n)) $n = 1;
+
+  if ($login) {
+    // エラーチェック
+    if(empty($s) || !is_numeric($s)) {
+      $MES[] = "正しくない操作です";
+    }
+    if (sizeof($MES)==0) {
+      $sql = "SELECT * FROM mail WHERE user_id='$login_id' AND \"from\" = '$login_id' AND seqno=$s";
+      $res = pg_query($conn,$sql);
+      $cnt = pg_num_rows($res);
+      if($cnt==0) {
+        $MES[] = "指定された情報は既に削除されています";
+      } else {
+        $row = pg_fetch_array($res,0);
+        $stamp   = datetime2timestamp($row["createstamp"]);
+        $from    = $row["from"];
+        $fromnam = get_first("users","name_ryaku","id='$from'","不明");
+        $to      = $row["to"];
+        $tos     = preg_split(",",$to);
+        $body    = mb_convert_kana($row["body"],"ak");
+        $a       = $row["address_seqno"];
+      }
+    }
+
+    if (sizeof($MES) > 0) {
+      // エラー表示
+      $txt.= "<FONT COLOR=#FF0000>";
+      for ($i=0;$i<sizeof($MES);$i++) {
+        $txt.= $MES[$i]."<br>\n";
+      }
+      $txt.= "</FONT>";
+    } else {
+      // 表示
+
+      ## 既読処理
+      if (get_first("mail_res","seqno","seqno=$s AND user_id='$login_id'",0)==0) {
+        $sql = "INSERT INTO mail_res (seqno,user_id,createstamp) VALUES ($s,'$login_id','now')";
+        pg_query($conn,$sql);
+      }
+
+      $txt.= "送信:";
+      $txt.= date("m/d H:i",$stamp);
+      $txt.= "<BR>\n";
+
+      $txt.= "送信先:";
+
+      if (sizeof($tos)>0) {
+        while(list($seq,$val)=each($tos)) {
+          $sql_user = "SELECT * FROM users WHERE id='$val'";
+          $res_user = pg_exec($conn,$sql_user);
+          $cnt_user = pg_num_rows($res_user);
+          if ($cnt_user==0) {
+            $txt.= "不明";
+          } else {
+            $row_user = pg_fetch_array($res_user,0);
+            $fromname = $row_user["name_ryaku"];
+            if (trim($fromname)=="") $fromname = $row_user["name"];
+
+            $frommail = $row_user["email_sub"];
+            if (trim($frommail)=="") $frommail = $row_user["email"];
+
+            $txt.= "<A HREF=\"../mem/detail.phtml$serial&id=".$val."\">";
+            $txt.= $fromname;
+            $txt.= "</A>";
+
+            if (trim($row_user["email_sub"])!="") {
+              $txt.= "<A HREF=\"mailto:".$row_user["email_sub"]."\">&emojimobilephone;</A>";
+            }
+            if (trim($row_user["email"])!="") {
+              $txt.= "<A HREF=\"mailto:".$row_user["email"]."\">&emojipc;</A>";
+            }
+          }
+          $txt.= "<BR>\n";
+        }
+      }
+
+#      $txt.= "件名:";
+#      $txt.= mb_convert_kana($row["subject"],"ak");
+#      $txt.= "<BR>\n";
+
+#      $txt.= "本文:";
+      $txt.= "<hr size=\"0\">\n";
+      if ($a>0) {
+        $sql_a = "SELECT * FROM address WHERE seqno=$a";
+        $res_a = pg_query($conn,$sql_a);
+        $cnt_a = pg_num_rows($res_a);
+        if ($cnt_a>0) {
+          $row_a = pg_fetch_array($res_a,0);
+          $txt.= "<A HREF=\"/i/addr/view.phtml$serial&seqno=$a\">";
+          $corpnam = $row_a["corp_name"];
+          $corpnam = ereg_replace("株式会社","",$corpnam);
+          $corpnam = ereg_replace("有限会社","",$corpnam);
+          $corpnam = ereg_replace("合資会社","",$corpnam);
+          $corpnam = ereg_replace("合名会社","",$corpnam);
+          $corpnam = ereg_replace("財団法人","",$corpnam);
+          $corpnam = ereg_replace("社団法人","",$corpnam);
+          $corpnam = ereg_replace("学校法人","",$corpnam);
+          $corpnam = ereg_replace("宗教法人","",$corpnam);
+          $corpnam = ereg_replace("特定非営利活動法人","",$corpnam);
+          $corpnam = ereg_replace("NPO法人","",$corpnam);
+          $corpnam = ereg_replace("社会福祉法人","",$corpnam);
+          $corpnam = ereg_replace("公益法人","",$corpnam);
+          $corpnam = ereg_replace("医療法人","",$corpnam);
+          $corpnam = ereg_replace("事業協同組合","",$corpnam);
+          $corpnam = ereg_replace("協同組合連合会","",$corpnam);
+          $corpnam = ereg_replace("企業組合","",$corpnam);
+          $corpnam = ereg_replace("協業組合","",$corpnam);
+          $corpnam = ereg_replace("振興組合","",$corpnam);
+          $corpnam = trim($corpnam);
+          $corpnam = mberegi_replace("　","",$corpnam);
+          $txt.= $corpnam." ";
+          $txt.= $row_a["person_name"];
+          $txt.= "</A> 様より ";
+        }
+      }
+      // 本文の処理
+      $body = mb_convert_kana($row["body"],"ak");
+      $body = preg_replace("/\x0D\x0A|\x0D|\x0A|\r\n|<BR>/","<BR>",$body);//改行カット
+      // ページに分割
+      $c=0;
+      while(true) {
+        $c++;
+        if ($c==1) {
+          $maxlen = 1350;
+        } else {
+          $maxlen = 1700;
+        }
+        $rowtext = mb_strcut($body,0,$maxlen,"EUC-JP");
+        $bodys[] = $rowtext;
+        $body = substr($body,strlen($rowtext));
+        if ($body=="" || $c>100) break;
+        if (strlen($body)<$maxlen) {
+          $bodys[] = $body;
+          break;
+        }
+      }
+      if (sizeof($bodys)>1) {
+        $txt.= "<CENTER>";
+        $txt.= $n."/".sizeof($bodys);
+        $txt.= "</CENTER>\n";
+      }
+      $txt.= str_link_tel($bodys[$n-1]);
+      if (sizeof($bodys)>$n) {
+        $txt.= "<DIV ALIGN=RIGHT>";
+        $txt.= " ⇒ <A HREF=\"./view_recv.phtml$serial&type=send&s=$s&n=".($n+1)."\">次頁へ</A>";
+        $txt.= "</DIV>";
+      }
+
+      $txt.= "<CENTER>";
+      $txt.= "&lt;<A HREF=\"./del/$serial&p=$p&s=$s&type=send\">削除</A>&gt;";
+      $txt.= "<hr size=\"0\">";
+      $txt.= "&lt;<A HREF=\"./list_send.phtml$serial&p=$p\">一覧</A>&gt;";
+      $txt.= "</CENTER>\n";
+    }
+  }
+  include ("../footer.inc.php");
+?>

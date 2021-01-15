@@ -1,0 +1,312 @@
+<?php
+  // ヘッダ読み込み
+  include "../../config.inc.php";
+  include "../../lib.inc.php";
+
+  // リンク用テキストの設定
+  $linktext  = "<A HREF=\"../../\" CLASS=\"BAR\">トップページ</A> &gt; ";
+  $linktext .= "<A HREF=\"../\" CLASS=\"BAR\">Webフォルダ</A> &gt; ";
+  $linktext .= "<FONT COLOR=#FFFF00>ファイルの移動</FONT> ";
+
+  // パラメーターセット
+  $path = urldecode($_REQUEST["path"]);
+  $name = urldecode($_REQUEST["name"]);
+
+  // ヘッダー出力
+  include "../../header.inc.php"; flush();
+
+  if ($login && sizeof($MES)==0) {
+    $pagetext = "";
+
+  #// 操作権限のチェック
+  #if (sizeof($MES)==0 && $login && !empty($login_id) && $upload_sign!='t') {
+  #  $MES[] = "ご利用中のアカウントではファイル名の変更はできません";
+  #}
+
+    $path = trim($path);
+    $pos = strrpos($name,".");
+    if ($pos>0) {
+      $file = substr($name,0,$pos);
+      $ext  = substr($name,$pos+1);
+    } else {
+      $file = $name;
+      $ext  = "";
+    }
+
+    $removepath = $folderpath.$path;
+    $removefile = $folderpath.$path."/".$name;
+    if (!file_exists($removepath)) {
+      $DMES[] = "指定されたフォルダが見つかりません。";
+    } else {
+      $fp = fopen($removepath,"r");
+      if ($fp == false) {
+        $DMES[] = "指定されたフォルダを開くことができませんでした。";
+      } else {
+        fclose($fp);
+        if (!file_exists($removefile)) {
+          $DMES[] = "指定されたファイルが見つかりません。";
+        } else {
+          $fp = fopen($removefile,"r");
+          if ($fp == false) {
+            $DMES[] = "指定されたファイルを開くことができませんでした。";
+          } else {
+            fclose($fp);
+          }
+        }
+      }
+    }
+
+    if (sizeof($DMES)>0) {
+      // エラー時
+      $pagetext .= "<BR><CENTER>\n";
+      $pagetext .= "<FONT COLOR=#FF0000>\n";
+      while (list($key,$val)=each($MES)) {
+        $pagetext .= $val."<BR>\n";
+      }
+      $pagetext .= "</FONT>\n";
+      $pagetext .= "<FORM><INPUT TYPE=BUTTON VALUE=\"戻る\" ONCLICK=\"history.back()\"></FORM>\n";
+      $pagetext .= "</CENTER>";
+    } else {
+      // 正常時
+// ディレクトリリストチェック
+function check_dir_tree($dirname) {
+#echo $level.":".$dirname."<BR>";
+  global $conn,$groups,$login_id;;
+  global $folderpath,$relpath;
+
+  $viewpath = $folderpath.$dirname;
+  if (!file_exists($viewpath)) {
+    return "0";
+  }
+  $handle = opendir($viewpath);
+  // 獲得
+  $dirs = 0;
+  $files = 0;
+  while ($file = readdir($handle)) { 
+    if ($file != "." && $file != "..") { 
+      if (is_dir($viewpath."/".$file)) {
+        if ($admin_sign=="t" || $admin_sign!="t" && $file != "trash") {
+          //
+          if ($admin_sign != "t") {
+            if ($dirname=="/") {
+              $searchpath = $dirname.$file;
+            } else {
+              $searchpath = $dirname."/".$file;
+            }
+            $sql = "SELECT view_group_ids,view_user_ids FROM folders WHERE path='".$searchpath."'";
+            $res = pg_query($conn,$sql);
+            $cnt = pg_num_rows($res);
+            if ($cnt>0) {
+              $view = false;
+              $row = pg_fetch_array($res,0);
+              if ($row["view_group_ids"]=="" && $row["view_user_ids"]=="") {
+                $view = true;
+              } else {
+                if ($row["view_group_ids"]!="") {
+                  $view_group_id = preg_split(",",$row["view_group_ids"]);
+                  if (sizeof($view_group_id)>0) while (list($seq,$id)=each($view_group_id)) {
+                    if (sizeof($groups)>0) {
+                      reset($groups);
+                      while (list($gseq,$gid)=each($groups)) {
+                        if ($gid==$id) { $view = true; break; }
+                      }
+                    }
+                  }
+                }
+                if ($row["view_user_ids"]!="") {
+                  $view_user_id = preg_split(",",$row["view_user_ids"]);
+                  if (sizeof($view_user_id)>0) while (list($seq,$id)=each($view_user_id)) {
+                    if ($login_id==$id) { $view = true; break; }
+                  }
+                }
+              }
+              if (!$view) {
+                continue;
+              }
+            }
+          }
+          //
+          $dirs++;
+        }
+      }
+    }
+  }
+  return $dirs;
+}
+
+// ディレクトリリスト表示
+function echo_dir_tree($dirname,$level,$tree,$last) {
+#echo $level.":".$dirname."<BR>";
+  global $conn,$groups,$login_id;;
+  global $folderpath,$path;
+
+  $dir_tree = "";
+  $viewpath = $folderpath.$dirname;
+  if (!file_exists($viewpath)) {
+    return null;
+  }
+  $handle = opendir($viewpath);
+  // 獲得
+  while ($file = readdir($handle)) { 
+    if ($file != "." && $file != "..") { 
+      $filename = $file;
+      $value = basename($viewpath."/".$file);
+      if (is_dir($viewpath."/".$file)) {
+        if ($admin_sign=="t" || $admin_sign!="t" && $file != "trash") {
+          //
+          if ($admin_sign != "t") {
+            if ($dirname=="/") {
+              $searchpath = $dirname.$file;
+            } else {
+              $searchpath = $dirname."/".$file;
+            }
+            $sql = "SELECT view_group_ids,view_user_ids FROM folders WHERE path='".$searchpath."'";
+            $res = pg_query($conn,$sql);
+            $cnt = pg_num_rows($res);
+            if ($cnt>0) {
+              $view = false;
+              $row = pg_fetch_array($res,0);
+              if ($row["view_group_ids"]=="" && $row["view_user_ids"]=="") {
+                $view = true;
+              } else {
+                if ($row["view_group_ids"]!="") {
+                  $view_group_id = preg_split(",",$row["view_group_ids"]);
+                  if (sizeof($view_group_id)>0) while (list($seq,$id)=each($view_group_id)) {
+                    if (sizeof($groups)>0) {
+                      reset($groups);
+                      while (list($gseq,$gid)=each($groups)) {
+                        if ($gid==$id) { $view = true; break; }
+                      }
+                    }
+                  }
+                }
+                if ($row["view_user_ids"]!="") {
+                  $view_user_id = preg_split(",",$row["view_user_ids"]);
+                  if (sizeof($view_user_id)>0) while (list($seq,$id)=each($view_user_id)) {
+                    if ($login_id==$id) { $view = true; break; }
+                  }
+                }
+              }
+              if (!$view) {
+                continue;
+              }
+            }
+          }
+          //
+          $dirs[$filename] = $value;
+        }
+      }
+    }
+  }
+  // ソート
+  if (sizeof($dirs)>0) {
+    asort($dirs);
+
+    // 出力
+    $c = 0;
+    while (list($key,$val)=each($dirs)) { 
+      $c++;
+      if (substr($dirname,-1,1)!="/") {
+        $subdirname = $dirname."/".$key;
+      } else {
+        $subdirname = $dirname.$key;
+      }
+
+      $dircount = check_dir_tree($subdirname);
+
+      for ($i=0;$i<strlen($tree)-1;$i++) {
+        if (substr($tree,$i,1)=="t") {
+          $dir_tree .= "<IMG SRC=\"../../image/icon/fol2.gif\" WIDTH=10 HEIGHT=13 ALIGN=ABSMIDDLE>";
+        } else {
+          $dir_tree .= "<IMG SRC=\"../../image/icon/folnull.gif\" WIDTH=10 HEIGHT=13 ALIGN=ABSMIDDLE>";
+        }
+      }
+      if (sizeof($dirs)==$c) {
+#      if ($last==true) {
+        $dir_tree .= "<IMG SRC=\"../../image/icon/fol4.gif\" WIDTH=10 HEIGHT=13 ALIGN=ABSMIDDLE>";
+      } else {
+        $dir_tree .= "<IMG SRC=\"../../image/icon/fol3.gif\" WIDTH=10 HEIGHT=13 ALIGN=ABSMIDDLE>";
+      }
+
+      if ($dircount>0) {
+        $dir_tree .= "<IMG SRC=\"../../image/icon/folminus.gif\" WIDTH=10 HEIGHT=13 ALIGN=ABSMIDDLE BORDER=0>";
+      } else {
+        $dir_tree .= "<IMG SRC=\"../../image/icon/fol1.gif\" WIDTH=5 HEIGHT=13 ALIGN=ABSMIDDLE>";
+      }
+
+      $dir_tree .= "&nbsp;";
+      if (stripslashes($path) != $subdirname) {
+        $dir_tree .= $key;
+        $dir_tree .= "<INPUT TYPE=RADIO NAME=\"path\" VALUE=\"".rawurlencode($subdirname)."\" STYLE=\"height:15px\">";
+      } else {
+        $dir_tree .= "<B>".$key."</B>";
+      }
+      $dir_tree .= "<BR>";
+
+      if (sizeof($dirs)==$c) {
+        $tree = substr($tree,0,strlen($tree)-1)."f";
+      }
+      if (sizeof($dirs)==$c) {
+        $dir_tree .= echo_dir_tree($subdirname,$level+1,$tree."t",true);
+      } else {
+        $dir_tree .= echo_dir_tree($subdirname,$level+1,$tree."t",false);
+      }
+    }
+    return $dir_tree;
+  } else {
+    return false;
+  }
+}
+
+      if (substr($file,0,1)==".") {
+        $file_org = substr($file,1);
+      } else {
+        $file_org = $file;
+      }
+      if ($ext!="") $file_org .= ".".$ext;
+
+      $pagetext .= "
+<CENTER><BR>
+移動先のフォルダを選択して下さい<BR><BR>
+
+<TABLE BORDER=0 CELLPADDING=4 CELLSPACING=1 width=480 BGCOLOR=#999999>
+<FORM ACTION=\"./move.phtml\" METHOD=POST>
+<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"".$p."\">
+<INPUT TYPE=HIDDEN NAME=\"oldpath\" VALUE=\"".urlencode($path)."\">
+<INPUT TYPE=HIDDEN NAME=\"name\" VALUE=\"".urlencode($name)."\">
+<TR>
+<TD ALIGN=RIGHT WIDTH=90 NOWRAP VALIGN=TOP BGCOLOR=$td_back_left>ファイル名</TD>
+<TD ALIGN=LEFT BGCOLOR=$td_back><TABLE BORDER=0 CELLPADDING=4 CELLSPACING=0><TR><TD><IMG SRC=\"".ext_check("a.".$ext)."\" ALT=\"拡張子:".strtolower($ext)."\" WIDTH=32 HEIGHT=32 BORDER=0 ALIGN=ABSMIDDLE> $file_org</TD>
+</TR></TABLE></TD>
+</TR>
+
+<TR>
+<TD ALIGN=RIGHT WIDTH=90 NOWRAP VALIGN=TOP BGCOLOR=$td_back_left>フォルダ</TD>
+<TD ALIGN=LEFT BGCOLOR=$td_back><TABLE BORDER=0 CELLPADDING=4 CELLSPACING=0><TR><TD STYLE=\"line-height:12px\">";
+
+      // フォルダ一覧の表示
+      $pagetext .= "<IMG SRC=\"../../image/icon/folminus.gif\" WIDTH=10 HEIGHT=13 ALIGN=ABSMIDDLE BORDER=0>";
+      if ($path != "/") {
+        $pagetext .= "&nbsp;/[ドキュメントルート]";
+        $pagetext .= "<INPUT TYPE=RADIO NAME=\"path\" VALUE=\"/\" STYLE=\"height:15px\">";
+      } else {
+        $pagetext .= "&nbsp;<B>/ (ドキュメントルート)</B>";
+      }
+      $pagetext .= "<BR>\n";
+
+      $pagetext .= echo_dir_tree("/",0,"t",true);
+
+      $pagetext .=  "
+</TD></TR></TABLE>
+</TD></TR></TABLE><BR>
+
+<INPUT TYPE=SUBMIT VALUE=\"ファイルの移動\">
+</FORM>
+</CENTER>
+";
+    }
+  }
+
+  include "../../detail.inc.php";
+  include "../../footer.inc.php";
+?>

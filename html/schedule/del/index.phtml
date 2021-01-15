@@ -1,0 +1,268 @@
+<?php
+include "../../config.inc.php"; include "../../lib.inc.php";
+include "../../language.inc.php";
+
+$linktext  = "<A HREF=\"../../\" CLASS=\"BAR\">トップページ</A> &gt; ";
+$linktext .= "<A HREF=\"../\" CLASS=\"BAR\">予定表</A> &gt; ";
+if (empty($s)) {
+	$linktext .= "<A HREF=\"./\" CLASS=\"BAR\">予定の登録</A> &gt; ";
+} else {
+	$linktext .= "<A HREF=\"./&s=$s\" CLASS=\"BAR\">予定の確認</A> &gt; ";
+}
+$linktext .= "<FONT COLOR=#FFFF00>削除</FONT>";
+
+include "../../login_check.inc.php";
+
+        // add sandbox by nanbuwks 20111130
+        $sandBox = new ext2OldVariable();
+        $hoge = array("seqno");
+        $sandBox->getNameArray2Oldvariable($hoge);
+
+////////////////////////////
+function sendmail_schedule($user_id,$seqno) {
+	global $conn,$login_id,$webmaster,$wname,$domain,$wname;
+
+	// 発信者アドレスのセット
+	$mailfrom = trim(get_first("users","email_sub","id='".$login_id."'",""));
+	if ($mailfrom == "") {
+		$mailfrom = trim(get_first("users","email","id='".$login_id."'",""));
+	}
+
+	// データ確認
+	$sql = "SELECT * FROM schedules WHERE seqno=".$seqno;
+	$res = pg_query($conn, $sql);
+	$cnt = pg_num_rows($res);
+	if ($cnt>0) {
+		$row = pg_fetch_array($res,0);
+	}
+	if ($mailfrom != "" && $cnt>0) {
+		// ヘッダの生成
+		$mailheader  = "Date: ".date("D, j M Y G:i:s")." +0900\n";
+		$mailheader .= "From: ".$mailfrom."\n";
+		$mailheader .= "Reply-To: ".$mailfrom."\n";
+		$mailheader .= "Return-Path: ".$mailfrom."\n";
+		$mailheader .= "Errors-To: ".$webmaster."\n";
+		$mailheader .= "MIME-Version: 1.0\n";
+		$mailheader .= "Content-Type: text/plain; charset=iso-2022-jp\n";
+		#$mailheader .= "Content-Type: multipart/mixed; boundary=\"".$boundary."\"\n";
+		$mailheader .= "Content-Transfer-Encoding: 7bit\n";
+		$mailheader .= "X-Mailer: AdelieOffice SendMail";
+		
+		// 表題の生成
+		$mailsubject  = "予定削除:".date("m/d");
+		$mailsubject .= "(";
+		$mailsubject .= $wname[date("w")];
+		$mailsubject .= ") ";
+		$mailsubject .= date("H:i");
+		
+		// 本文の生成
+		$mailbody = "";
+		
+		// 発信者名のセット
+		$mailbody .= "削除者:";
+		$mailbody .= trim(get_first("users","name_ryaku","id='".$login_id."'",""));
+		$mailbody .= "\n";
+		
+		if (date("Y",date2timestamp($row["datefrom"]))<>date("Y")) {
+			$mailbody .= "日時:".date("Y/n/j",date2timestamp($row["datefrom"]));
+		} else {
+			$mailbody .= "日時:".date("n/j",date2timestamp($row["datefrom"]));
+		}
+		
+		if (!empty($row["timefrom"])) {
+			$mailbody .= " ".date("H:i",datetime2timestamp($row["timefrom"]));
+		}
+		if (!empty($row["timefrom"]) || !empty($row["timeto"])) {
+			$mailbody .= "〜";
+		}
+		if ($row["datefrom"]!=$row["dateto"]) {
+			if (date("Y",date2timestamp($row["dateto"]))<>date("Y",date2timestamp($row["datefrom"]))) {
+				$mailbody .= date("Y/n/j",date2timestamp($row["dateto"]));
+			} else {
+				$mailbody .= date("n/j",date2timestamp($row["dateto"]));
+			}
+		}
+		if (!empty($row["timeto"])) {
+			$mailbody .= " ".date("H:i",datetime2timestamp($row["timeto"]));
+		}
+		$mailbody .= "\n";
+		$mailbody .= "------------------\n";
+		$mailbody .= mail_textsafe($row["note"]);
+		
+		// 配信処理
+		$sql_user = "SELECT * FROM users WHERE id='".$user_id."';";
+		$res_user = pg_query($conn, $sql_user);
+		$cnt_user = pg_num_rows($res_user);
+		if ($cnt_user>0) {
+			$row_user = pg_fetch_array($res_user,0);
+		}
+		if (trim($row_user["email_sub"]) != "") {
+			$mailaddr = trim($row_user["email_sub"]);
+		} elseif(trim($row_user["email"]) != "") {
+			$mailaddr = $row_user["email"];
+		}
+		if ($cnt_user>0 && $mailaddr != "") {
+			// ワンタイムパースワード確認
+			$onepass = $row_user["onetime_passwd"];
+			if (trim($onepass)=="") {
+				$onepass = make_serial(12);
+				pg_query($conn,"UPDATE users SET onetime_passwd='".$onepass."' WHERE id='".$user_id."'");
+			}
+			
+			// キャリア毎のメール準備
+			if (preg_match("@docomo\.ne\.jp$",$mailaddr)) {
+				# Docomo 500字まで
+				$maxlen = 500;
+			} elseif (preg_match("@jp\-.\.ne\.jp$",$mailaddr) || preg_match("@..\.vodafone\.ne\.jp$",$mailaddr)) {
+				# J-SKY 384字まで
+				$maxlen = 384;
+			} elseif (preg_match("@ezweb\.ne\.jp$",$mailaddr) || preg_match("@.*\.ezweb\.ne\.jp$",$mailaddr) || preg_match("@ez.*\.ido\.ne\.jp$",$mailaddr)) {
+				# EZWeb 2000字まで
+				$maxlen = 2000;
+			} else {
+				$maxlen = 10000;
+			}
+			$mailbody = mb_strcut($mailbody,0,$maxlen);
+			
+			// メール送信
+			mail ($mailaddr,
+			mb_encode_mimeheader(euc2jis($mailsubject),"ISO-2022-JP"),
+			euc2jis($mailbody),
+			euc2jis($mailheader));
+		}
+	}
+}
+////////// Functions(End) //////////
+
+if ($login && sizeof($MES)==0) {
+	// 削除処理
+	$sql = "SELECT * FROM schedules where seqno=".$seqno;
+	$res = pg_query($conn,$sql);
+	if(pg_num_rows($res)==0){
+		$DMES[] = "指定された情報は既に削除されています";
+	} else {
+		$row = pg_fetch_array($res,0);
+		
+		$user_id        = $row["user_id"];
+		$create_user_id = $row["create_user_id"];
+		$ref_seqno      = $row["ref_seqno"];
+		
+		$address_seqno      = $row["address_seqno"];
+		$address_log__seqno = $row["address_log_seqno"];
+		
+		// 関連スケジュール削除時にメール送出
+		$sql_ref = "SELECT * FROM schedules where ref_seqno=".$seqno;
+		$res_ref = pg_query($conn,$sql_ref);
+		$cnt_ref = pg_num_rows($res_ref);
+		if ($cnt_ref>0) {
+			for ($i=0;$i<$cnt_ref;$i++) {
+				$row_ref = pg_fetch_array($res_ref,$i);
+				sendmail_schedule($row_ref["user_id"],$row_ref["seqno"]);
+			}
+		}
+		// スケジュール削除
+		$sql = "DELETE FROM schedules WHERE seqno=".$seqno." or ref_seqno=".$seqno;
+		$res = pg_query($conn,$sql);
+		if($res==false){
+			$DMES[] = "削除に失敗しました";
+		}
+                echo "##################",$sql;
+
+		// 過去のアラームデータがあれば削除
+		$sql = "DELETE FROM alarm WHERE datatype='schedule' AND dataseqno=".$seqno;
+		pg_query($conn, $sql);
+
+		// 共有スケジュール時は親スケジュールから自身を除外
+		if ($ref_seqno != "" and $user_id != $create_user_id) {
+			$sql = "SELECT * FROM schedules where seqno=".$ref_seqno;
+			$res = pg_query($conn,$sql);
+			if (pg_num_rows($res)>0) {
+				$row = pg_fetch_array($res,0);
+				$userid_to = $row["sharelist"];
+				// UserIDの再整列と自身を除外
+				$userids = preg_split(",",$userid_to);
+				if (sizeof($userids)>0) {
+					while (list($key,$val)=each($userids)) {
+						$idfind = false;
+						if (sizeof($new_userids)>0) {
+							while (list($new_key,$new_val)=each($new_userids)) {
+								if ($new_val==$val) {
+									$idfind = true;
+									break;
+								}
+							}
+						}
+						if (!$idfind) {
+							$sql_user = "select * from users where id='".$val."'";
+							$res_user = pg_query($conn, $sql_user);
+							$cnt_user = pg_num_rows($res_user);
+							if ($cnt_user>0) {
+								$row_user = pg_fetch_array($res_user,0);
+								$new_userids[$row_user["seqno"]] = $val;
+							}
+						}
+					}
+				}
+				
+				if (sizeof($new_userids)>0) {
+					ksort($new_userids);
+					reset($new_userids);
+					$userid_to = "";
+					while (list($key,$val)=each($new_userids)) {
+						if ($val != $user_id) {
+							if ($userid_to != "") { $userid_to .= ","; }
+							$userid_to .= $val;
+						}
+					}
+				}
+				
+				$sql = "UPDATE schedules SET sharelist='".$userid_to."' WHERE seqno=".$ref_seqno;
+				$res = pg_query($conn,$sql);
+			}
+		}
+		
+		// 施設予約の削除
+		$sql = "DELETE FROM rooms_reserve WHERE schedule_seqno=".$seqno;
+		$res = pg_query($conn,$sql);
+		
+		// 住所録ログの削除
+		if ($address_seqno>0 && $address_log_seqno>0) {
+			$sql = "DELETE FROM address_log WHERE address_seqno=".$address_seqno." AND seqno=".$address_log_seqno." AND data_seqno=".$seqno;
+			$res = pg_query($conn,$sql);
+			if($res==false){
+				//          $DMES[] = "住所録ログの削除に失敗しました";
+			}
+		}
+	}
+}
+
+if (sizeof($DMES)>0) {
+	// エラーメッセージ出力
+	include "../../header.inc.php";
+	
+	$pagetext .= "<TABLE width=100%><TR><TD align=center><FONT color=\"#FF0000\">";
+	$pagetext .= "<BR>\n";
+	while (list($key,$val)=each($DMES)) {
+		$pagetext .= $val."<BR>";
+	}
+	$pagetext .= "<BR>\n";
+	$pagetext .= "<INPUT type=\"button\" value=\"戻る\" onClick=\"history.back()\"><BR>";
+	$pagetext .= "</TD></TR></TABLE>\n";
+	
+	include "../../detail.inc.php";
+	include "../../footer.inc.php";
+} else {
+	// 正常処理
+	$returl = "../";
+	if ($p=="top") {
+		$returl = "../../";
+	} elseif ($_COOKIE["sch_move"]=="daily") {
+		$returl = "../daily.phtml";
+	} elseif ($_COOKIE["sch_move"]=="monthly") {
+		$returl = "../monthly.phtml";
+	} elseif ($_COOKIE["sch_move"]=="yearly") {
+		$returl = "../yearly.phtml";
+	}
+	Header("Location: ".$returl);
+}
+?>

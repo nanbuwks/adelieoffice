@@ -1,0 +1,109 @@
+<?php
+  include ("../../config.inc.php"); include ("../../lib.inc.php");
+  include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+  $pagetitle = "受信メモ一覧";
+  include ("../header.inc.php");
+
+  if (empty($p) || !is_numeric($p)) $p = 1;
+
+  if ($login) {
+    if (sizeof($MES) > 0) {
+      // エラー表示
+      $txt.= "<FONT COLOR=#FF0000>";
+      for ($i=0;$i<sizeof($MES);$i++) {
+        $txt.= $MES[$i]."<br>\n";
+      }
+      $txt.= "</FONT>";
+    } else {
+      // 受信一覧
+      $txt.= "受信メモ&emojifinger_left;";
+#      $txt.= " ⇒";
+      $txt.= "<DIV ALIGN=RIGHT>";
+      $txt.= "&emojifinger_right;<A HREF=\"./list_send.phtml$serial\">";
+      $txt.= "送信メモ";
+      $txt.= "</A></DIV>\n";
+
+      $sql = "SELECT * FROM mail WHERE user_id='$login_id' AND \"from\"<>'$login_id' ORDER BY createstamp DESC";
+      $res = pg_query($conn,$sql);
+      $cnt = pg_num_rows($res);
+      $txt.= "<hr size=\"0\">\n";
+
+      if ($cnt == 0) {
+        $txt.= "メモはありません<BR>\n";
+      } else {
+        // ページ計算
+        $allpages = floor($cnt/$mobile_rows)+1;
+        if ($p>$allpages) $p = 1;
+        $s_row = ($p-1) * $mobile_rows;
+        $e_row = $p * $mobile_rows - 1;
+        if ($e_row>$cnt-1) {$e_row = $cnt-1;}
+        if ($cnt-1>$e_row) {$nextpage = true;}
+
+        // 前ページへ移動表示
+        if ($p>1) {
+          $txt.= "<CENTER>&lt;<A HREF=\"./$serial&p=".($p-1)."\">前の".$mobile_rows."件</A>&gt;</CENTER>";
+        }
+
+        $c = 0;
+        for($i=$s_row;$i<=$e_row;$i++) {
+          $c++;
+          $row = pg_fetch_array($res,$i);
+
+          $txt.= "&emoji".$c.";";
+
+          $subject = mb_convert_kana($row["subject"],"ak"); //半角に
+					if (trim($subject)=="") {
+#						$subject = "(表題なし)";
+	          $subject = mb_convert_kana($row["body"],"ak"); //半角に
+					}
+
+          $subject = preg_replace("/\x0D\x0A|\x0D|\x0A|\r\n|<BR>/i"," ",$subject);//改行カット
+          $subject = mb_strcut($subject,0,40);
+					if (trim($subject)=="") {
+						$subject = "(表題なし)";
+					}
+					
+#          $body = mb_convert_kana($row["body"],"ak"); //半角に
+#          $body = preg_replace("/\x0D\x0A|\x0D|\x0A|\r\n|<BR>/","<BR>",$body);//改行カット
+#          if (strlen($body)<=$charW*2*2-15) {
+#            $body = $body;
+#          } else {
+#            $body = mb_strcut($body,0,$charW*2*2-16).".";
+#          }
+
+          $cnt_kidoku = get_first("mail_res","seqno","seqno=".$row["seqno"]." AND user_id='$login_id'",0);
+          $txt.= "<A HREF=\"./view_recv.phtml$serial&p=$p&type=recv&s=".$row["seqno"]."\" $accesskey=$c>";
+          if ($cnt_kidoku==0) { $txt.= "<FONT COLOR=#FF0000>"; }
+
+          $txt.= $subject;
+#          $txt.= $body;
+
+          if ($cnt_kidoku==0) { $txt.= "</FONT>"; }
+          $txt.= "</A>";
+          $txt.= "(";
+          $txt.= date("m/d H:i",datetime2timestamp($row["createstamp"]));
+          $txt.= ")";
+
+          $txt.= "<BR>";
+        }
+        // 次ページへ移動表示
+        if ($nextpage) {
+          $txt.= "<CENTER>&lt;<A HREF=\"./$serial&p=".($p+1)."\">次の".$mobile_rows."件</A>&gt;</CENTER>\n";
+        }
+      }
+
+      $txt.= "<hr size=\"0\">";
+      if ($cnt > 0) {
+#        $txt.= "<CENTER>&lt;<A HREF=\"./del/all.phtml$serial&type=recv\">全削除</A>&gt;</CENTER>\n";
+      }
+      $txt.= "<DIV ALIGN=RIGHT>";
+      $txt.= "&emoji0;<a href=\"./add/$serial\" $accesskey=0>";
+      $txt.= "新規メモ</A>";
+      $txt.= "</DIV>\n";
+    }
+  }
+
+  include ("../detail.inc.php");
+  include ("../footer.inc.php");
+?>

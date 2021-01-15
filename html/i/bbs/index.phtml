@@ -1,0 +1,148 @@
+<?php
+  include ("../../config.inc.php"); include ("../../lib.inc.php");
+  include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+  ## ヘッダ表示
+  $pagetitle = "BBS投稿一覧";
+  include ("../header.inc.php");
+  if (empty($p)) $p = 1;
+
+  if ($login) {
+    ## メニュータイトル
+    $txt.= "BBS一覧&emojisunadokei;";
+    $txt.= "<hr size=\"0\">";
+
+    ## エラーチェック
+    if (sizeof($MES)>0) {
+      ## エラー時
+      $txt.= "<FONT COLOR=#FF0000>";
+      while (list($key,$val)=each($MES)) {
+        $txt.= $val."<BR>";
+      }
+      $txt.= "</FONT>";
+    } else {
+      ## 公開が許可されている掲示板表示
+      $c = 0;
+      $sql = "SELECT seqno,id,name,admin_id,view_group_ids,view_user_ids FROM boards ORDER BY seqno";
+      $res = pg_query($conn,$sql);
+      $cnt = pg_num_rows($res);
+      if ($cnt==0) {
+        $txt.= "<CENTER><FONT COLOR=#FF0000>";
+        $txt.= "ボード未登録";
+        $txt.= "</FONT></CENTER>";
+      } else {
+        for($i=0;$i<$cnt;$i++) {
+          $use        = false;
+          $row        = pg_fetch_array($res,$i);
+          $manage_id  = $row["admin_id"];
+          $boardsid   = $row["id"];
+          $boardsname = $row["name"];
+          $group_ids  = $row["view_group_ids"];
+          $user_ids   = $row["view_user_ids"];
+          if ($manage_id==$login_id || ($group_ids=="" && $user_ids=="")) {
+            ## 管理者 or 掲示板管理者 or 制約のない掲示板
+            $use = true;
+          } else {
+            if ($group_ids!="") {
+              $view_group_id = preg_split(",",$group_ids);
+              if (sizeof($view_group_id)>0) while (list($seq,$id)=each($view_group_id)) {
+                $chkcnt = get_count("users_entry","user_id='$login_id' AND group_id='$id'");
+                if ($chkcnt>0) { $use = true; break; }
+              }
+            }
+            if ($user_ids!="") {
+              $view_user_id = preg_split(",",$user_ids);
+              if (sizeof($view_user_id)>0) while (list($seq,$id)=each($view_user_id)) {
+                if ($login_id==$id) { $use = true; break; }
+              }
+            }
+          }
+          if ($use) {
+            # 表示領域
+            $bbs_array[] = array($boardsid,$boardsname);
+          }
+        }
+
+        ## ページ計算
+        $cnt = sizeof($bbs_array);
+        $allpages = floor($cnt/$mobile_bbsrows)+1;
+        if ($p>$allpages) $p = 1;
+        $s_row = ($p-1) * $mobile_bbsrows;
+        $e_row = $p * $mobile_bbsrows - 1;
+        if ($e_row>$cnt-1) {$e_row = $cnt-1;}
+        if ($cnt-1>$e_row) {$nextpage = true;}
+
+        ## BBS一覧表示
+        for($i=$s_row;$i<=$e_row;$i++) {
+          $c++;
+          $txt.= "&emoji".$c.";";
+          ## 未読数獲得
+          $sql_post = "SELECT count(boards_post.seqno) as count FROM boards_post ";
+          $sql_post.= "LEFT JOIN (SELECT * FROM boards_res WHERE boards_res.user_id='$login_id') AS boards_res ";
+          $sql_post.= "ON boards_post.board_id = boards_res.board_id AND boards_post.seqno = boards_res.seqno ";
+          $sql_post .= "WHERE boards_post.board_id='".$bbs_array[$i]["0"]."' AND boards_res.createstamp is NULL ";
+          $res_post = pg_query($conn,$sql_post);
+          $cnt_post = pg_num_rows($res_post);
+          $post_count = 0;
+          if ($cnt_post>0) {
+            $row_post = pg_fetch_array($res_post,0);
+            $post_count = $row_post["count"];
+          }
+          $txt.= "<A HREF=\"/i/bbs/board.phtml$serial&sn=$sn&bid=".$bbs_array[$i]["0"]."&p=$p\" $accesskey=$c>";
+          if ($post_count>0) {
+            $txt.= "<FONT COLOR=#FF0000>";
+            $txt.= mb_convert_kana($bbs_array[$i]["1"],"ak");
+            $txt.= "</FONT>";
+          } else {
+            $txt.= mb_convert_kana($bbs_array[$i]["1"],"ak");
+          }
+          $txt.= "</A>";
+          if ($post_count>0) {
+            $txt.= "(".$row_post["count"].")";
+          }
+          $txt.= "<BR>";
+        }
+      }
+
+      ## ページ情報の表示
+      if ($allpages>1) {
+        $txt.= "<hr size=\"0\">";
+        $txt.= "<CENTER>";
+        $s_p = $p - 4;
+        $e_p = $p + 4;
+        if ($s_p<1) {
+          $r = 1-$s_p;
+          $s_p = $s_p + $r;
+          $e_p = $e_p + $r;
+        } elseif ($e_p>$allpages) {
+          $r = $e_p - $allpages;
+          $s_p = $s_p - $r;
+          $e_p = $e_p - $r;
+        }
+        if ($s_p < 1) $s_p = 1;
+        if ($e_p > $allpages) $e_p = $allpages;
+        $txt.= "&lt;";
+        if ($p>1) {
+          $txt.= "<A HREF=\"./?sn=$sn&p=".($p-1)."\">";
+          $txt.= "前頁";
+          $txt.= "</A>";
+        } else {
+          $txt.= "<FONT COLOR=#999999>前頁</FONT>";
+        }
+        $txt.= "&gt;&nbsp;&lt;";
+        if ($nextpage) {
+          $txt.= "<A HREF=\"./?sn=$sn&p=".($p+1)."\">";
+          $txt.= "次頁";
+          $txt.= "</A>";
+        } else {
+          $txt.= "<FONT COLOR=#999999>次頁</FONT>";
+        }
+        $txt.= "&gt;";
+        $txt.= "</CENTER>";
+      }
+    }
+  }
+
+  ## フッタ表示
+  include ("../footer.inc.php");
+?>

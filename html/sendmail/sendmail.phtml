@@ -1,0 +1,144 @@
+<?php
+  include "../config.inc.php";
+  include "../language.inc.php";
+  include "../lib.inc.php";
+
+  include "../header.inc.php";
+
+  // エラー判定
+  if ($login) {
+    $subject = textsafe($subject);
+    $name    = textsafe($name);
+    $email   = textsafe($email);
+    $body    = textsafe($body);
+
+    // 入力チェック
+    if (trim($subject)=="") {
+      $MES[] ="表題が入力されていません。";
+    } elseif(strlen($subject)>160) {
+      $MES[] ="表題が長すぎます。全角80文字(半角160文字)までで入力してください";
+      $subject = mb_strcut($subject,0,160);
+    }
+    if (trim($body)=="") {
+      $MES[] ="本文が入力されていません。";
+    } elseif(strlen($body)>8192) {
+      $MES[] ="本文が長すぎます。8192文字までで入力してください";
+      $body = mb_strcut($body,0,8192);
+    }
+
+    if ($priority != "") {
+      $priority = 3;
+    }
+
+    /****** メールヘッダの事前生成 ******/
+    $header  = "MIME-Version: 1.0\n";
+    $header .= "Content-Type: text/plain; charset=iso-2022-jp\n";
+    $header .= "Content-Transfer-Encoding: 7bit\n";
+    $header .= "From: ".$from."\n";
+    $header .= "Return-Path: ".$from."\n";
+    if ($cc != "") {
+      $header .= "Cc: ".$cc."\n";
+    }
+    if ($bcc != "") {
+      $header .= "Bcc: ".$bcc."\n";
+    }
+    if ($prent != "") {
+      $header .= "In-Reply-To: ".$parent."\n";
+    }
+    if ($priority != 3) {
+      $header .= "X-Priority: ".$priority."\n";
+    }
+    if ($priority==1 || $priority==2) {
+      $header .= "X-MSMail-Priority: High\n";
+    } elseif ($priority==4 || $priority==5) {
+      $header .= "X-MSMail-Priority: Low\n";
+    }
+    $header .= "X-Mailer: AdelieOffice SendMail\n";
+
+    /****** DB書き込み ******/
+    if (sizeof($MES)==0) {
+      // 書き込み用前処理
+      $db_header  = db_textsafe($header);
+      $db_subject = db_textsafe($subject);
+      $db_body    = db_textsafe($body);
+
+      // メール保存用テーブル
+      $retry=0;
+      while (true) {
+        // ループアウト
+        break;
+      }
+
+      // 住所録履歴(メール)テーブル
+      if ($address_seqno != "") {
+        $mail_seqno = $seqno;
+
+        // seqno採番
+        $seqno = get_last("address_log","seqno","",0)+1;
+
+        $sql  = "INSERT INTO address_log (";
+        $sql .= "seqno,address_seqno,data_seqno,type,note,createstamp) VALUES (";
+        $sql .= "'".$seqno."',";
+        $sql .= $address_seqno.",";
+        $sql .= "0,";
+        $sql .= "'mail',";
+        $sql .= "'[".$db_subject."]\r\n".$db_body."',";
+        $sql .= "'now'";
+        $sql .= ")";
+
+        $res = pg_query($conn,$sql);
+      }
+    }
+
+    /****** メール送信 ******/
+    if (sizeof($MES)==0) {
+      mail(euc2jis($to),mb_encode_mimeheader(euc2jis(view_textsafe($subject)),"ISO-2022-JP"), euc2jis(view_textsafe($body)), euc2jis($header));
+    }
+  }
+
+  if (sizeof($MES)==0) {
+    // 正常処理
+    if (!empty($address_seqno)) {
+      $returl = $toppath."/address/edit/?s=$address_seqno";
+    } else {
+      $returl = $toppath."/address/";
+    }
+    print "
+<BR>
+<CENTER>
+送信完了<BR>
+<BR>
+<A HREF=\"#\" ONCLICK=\"location.replace('$returl');location.href='$returl';\">≪住所録へ戻る≫</A>
+</CENTER>
+<BR>
+<SCRIPT LANGUAGE=\"JavaScript\">
+<!--//
+  setTimeout(\"location.replace('$returl');location.href='$returl';\", 3000);
+//-->
+</SCRIPT>\n";
+  } else {
+    print "<center><br>";
+    print "<font color=\"#ff0000\"><b>";
+    while (list($key,$val)=each($MES)) {
+      print $val."<br>\n";
+    }
+    print "</b></font>\n";
+
+    print "<form name=\"sendmail_error\" action=\"./\" method=post>\n";
+    if ($address_seqno != "") {
+      print "<input type=hidden name=address_seqno value=\"".$address_seqno."\">\n";
+    }
+    print "<input type=hidden name=parent value=\"".$parent."\">\n";
+    print "<input type=hidden name=priority value=\"".$priority."\">\n";
+    print "<input type=hidden name=from value=\"".$from."\">\n";
+    print "<input type=hidden name=to value=\"".$to."\">\n";
+    print "<input type=hidden name=cc value=\"".$cc."\">\n";
+    print "<input type=hidden name=bcc value=\"".$bcc."\">\n";
+    print "<input type=hidden name=subject value=\"".$subject."\">\n";
+    print "<input type=hidden name=body value=\"".$body."\">\n";
+    print "<input type=submit value=\"再入力\">\n";
+    print "</form>\n";
+    print "</center>";
+  }
+  include "../footer.inc.php";
+?>

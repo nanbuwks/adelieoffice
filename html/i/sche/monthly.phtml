@@ -1,0 +1,238 @@
+<?php
+include ("../../config.inc.php"); include ("../../lib.inc.php");
+include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+//現在日の設定
+if ($y=="" or $y==0 or !is_numeric($y) or $m=="" or $m==0 or !is_numeric($m)) {
+  $tempdate = getdate();
+  $y = $tempdate["year"];
+  $m = $tempdate["mon"];
+  $d = $tempdate["mday"];
+}
+$stamp = mktime(0, 0, 0, $m, $d, $y);
+
+// ヘッダ表示
+$pagetitle = "予定表 ".$y."年".$m."月";
+include ("../header.inc.php");
+
+if ($uid=="") {
+  $uid = $login_id;
+}
+
+// エラーチェック
+if ($login) {
+#  $txt .= "<!--";
+  if (trim($login_id) == "") {
+    $MES[] = "ユーザーＩＤが正しくありません";
+  } else {
+    $sql = "select * from users where id='".$login_id."'";
+    $res = pg_query($conn, $sql);
+
+    if (pg_num_rows($res)<1) {
+      $MES[] = "ユーザーＩＤが正しくありません".$sql;;
+    } else {
+      $row = pg_fetch_array($res,0);
+    }
+  }
+#  $txt .= "-->";
+
+  if (sizeof($MES)==0) {
+    //データ獲得
+    $sql = "SELECT * FROM users WHERE id='".$uid."'";
+    $res = pg_query($conn,$sql);
+    if (pg_num_rows($res)<1) {
+      $MES[] = "now printing";
+    } else {
+      $row = pg_fetch_array($res,0);
+    }
+  }
+
+  // カラー、日付、祭日のセット
+  $dispday = $stamp;
+
+  // 祭日チェック
+  $sql_holiday = "select * from holiday where holiday='".date("Y-m-d",$dispday)."'";;
+  $res_holiday = pg_query($conn, $sql_holiday);
+
+  $tempdate = getdate($dispday);
+  $w = $tempdate["wday"];
+
+  if (pg_num_rows($res_holiday)<1) {
+    $backcolor = $wcolor_back[$w];
+    $forecolor = $wcolor[$w];
+  } else {
+    $backcolor = $wcolor_back[7];
+    $forecolor = $wcolor[7];
+  }
+  pg_free_result($res_holiday);
+
+  $prev_d = getdate($stamp - 86400 * 1);
+  $next_d = getdate($stamp + 86400 * 1);
+
+  $today = getdate();
+
+  $txt .= "<CENTER>";
+
+  // 開始日 終了日の算出
+  $first = getdate(mktime(0, 0, 1, $m, 1, $y));
+
+  $next_y = $y;
+  $next_m = $m + 1;
+  if ($next_m>12) {
+    $next_y = $y + 1;
+    $next_m = 1;
+  }
+
+  $prev_y = $y;
+  $prev_m = $m - 1;
+  if ($prev_m<1) {
+    $prev_y = $y- 1;
+    $prev_m = 12;
+  }
+
+  $last = getdate(mktime(0, 0, 1, $next_m, 1, $next_y)-86400);
+
+  $txt .= "<A HREF=\"./".$serial."&uid=".$uid."&y=$y&m=$m&d=$d\">今日の予定へ</a><br>";
+
+  // 年月表示
+  $txt .= "<A HREF=\"./monthly.phtml".$serial."&uid=".$uid."&y=".$prev_y."&m=".$prev_m."\">&lt;&lt;</a>";
+  $txt .= " ";
+
+  $txt .= $y."年".$m."月";
+
+  $txt .= " ";
+  $txt .= "<A HREF=\"./monthly.phtml".$serial."&uid=".$uid."&y=".$next_y."&m=".$next_m."\">&gt;&gt;</a>";
+  $txt .= "<BR>\n";
+
+  // 曜日表示
+  for ($col=0;$col<7;$col++) {
+    if ($wcolor_title[$col]==$bodyForeColor) {
+    $txt .= $wname[$col];
+    } else {
+    $txt .= "<FONT COLOR=".$wcolor_title[$col].">".$wname[$col]."</FONT>";
+    }
+    if ($char_w > 20){
+    $txt .= " ";
+    }
+  }
+  $txt .= "<BR>\n";
+  // カレンダー表示
+  $draw = false;
+  $d = 0;
+  $drawin = false;
+  $row=0;
+  while (true) {
+    $col=0;
+    while (true) {
+    $daytype = "";
+    // 前月まで
+    if (!$draw) {
+      if ($first["wday"]==$col) {
+      $drawin = true;
+      $draw = true;
+      }
+    }
+    // 当月まで
+    if ($draw) {
+      if ($d < $last["mday"]) {
+      $d++;
+      $checkdate = $y."/".$m."/".$d;
+      // 祭日チェック
+      $sql_holiday = "select * from holiday where holiday='".$checkdate."'";
+      $res_holiday = pg_query($conn, $sql_holiday);
+      if (pg_num_rows($res_holiday)<1) {
+        $daytype = "normal";
+      } else {
+        $daytype = "holiday";
+        $row_holiday = pg_fetch_array($res_holiday,0);
+        $holiday = $row_holiday["name"];
+      }
+      }
+    }
+
+    // 表示データ作成
+    switch ($daytype) {
+    case "":
+      $backcolor = $wcolor_back[$col];
+      $forecolor = $wcolor[$col];
+      if (!$drawin) {
+      // 当月以前
+      $diff = $col-$first["wday"];
+      $wd = getdate((mktime(0, 0, 1, $m, 1, $y)+(86400*$diff)));
+      $checkdate = $wd["year"]."/".$wd["mon"]."/".$wd["mday"];
+      $daytext = "　";
+      } else {
+      // 当月以降
+      $diff = $col-$last["wday"]-1;
+      $wd = getdate((mktime(0, 0, 1, $next_m, 1, $next_y)+(86400*$diff)));
+      $checkdate = $wd["year"]."/".$wd["mon"]."/".$wd["mday"];
+      $daytext = "　";
+      }
+      break;
+    case "normal":
+      $backcolor = $wcolor_back[$col];
+      $forecolor = $wcolor[$col];
+      if ($d<=9){
+      $daytext = "<A HREF=\"./".$serial."&uid=".$uid."&y=$y&m=$m&d=$d\">&nbsp;".$d."</a>";
+      } else {
+      $daytext = "<A HREF=\"./".$serial."&uid=".$uid."&y=$y&m=$m&d=$d\">".$d."</a>";
+      }
+      break;
+    case "holiday":
+      $backcolor = $wcolor_back[7];
+      $forecolor = $wcolor[7];
+      if ($d<=9){
+      $daytext = "<A HREF=\"./".$serial."&uid=".$uid."&y=$y&m=$m&d=$d\">&nbsp;".$d."</a>";
+      } else {
+      $daytext = "<A HREF=\"./".$serial."&uid=".$uid."&y=$y&m=$m&d=$d\">".$d."</A>";
+      }
+      break;
+    }
+
+    if ($daytype != "") {
+      if ($y==$today["year"] and $m==$today["mon"] and $d==$today["mday"]) {
+      // 今日
+      $backcolor = "#FF0000";
+      } else {
+      // 今日以外
+      }
+    } else {
+      // 今日以外(別の月)
+    }
+    $txt .= $daytext;
+    if ($char_w > 20){
+      $txt .= "&nbsp;";
+    }
+
+    // データチェック
+    $col++;
+    if ($col>6) {
+      break;
+    }
+    }
+
+    $txt .= "<br>\n";
+    $row++;
+    if ($d >= $last["mday"]) {
+    break;
+    }
+  }
+
+  //新規予定の為、現在日の設定
+  $tempdate = getdate();
+  $y = $tempdate["year"];
+  $m = $tempdate["mon"];
+  $d = $tempdate["mday"];
+
+  $txt .= "</CENTER>\n";
+  $txt .= "<hr size=\"0\">\n";
+  $txt .= "<DIV ALIGN=RIGHT>";
+
+  $txt .= "<a href=\"./add/".$serial."&uid=".$uid."&p=monthly&uid=".$uid."&y=".$y."&m=".$m."&d=".$d."&ey=".$y."&em=".$m."&ed=".$d."\" ".$accesskey."=0>";
+  $txt .= "&emoji0;";
+  $txt .= "新規予定</A>";
+  $txt .= "</DIV>\n";
+  }
+  // フッタ表示
+  include "../footer.inc.php";
+?>

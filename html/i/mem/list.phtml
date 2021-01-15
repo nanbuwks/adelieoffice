@@ -1,0 +1,499 @@
+<?php
+  include ("../../config.inc.php"); include ("../../lib.inc.php");
+  include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+  if ($type == "") { $type = "C"; }
+  if (!empty($c))  { $char    = $c; }
+  if (!empty($s))  { $subchar = $s; }
+  if (!empty($t))  { $type    = $t; }
+
+  $pagetitle = "住所録 ";
+  if ($type=="CP") {
+    // 同一会社検索時
+    if ($cno != "") {
+      $sql_sum = "SELECT corp_kana,corp_name FROM address WHERE seqno=".$cno;
+      $res_sum = pg_query($conn,$sql_sum);
+      $cnt_sum = pg_num_rows($res_sum);
+      if ($cnt_sum>0) {
+        $row_sum = pg_fetch_array($res_sum,0);
+        $corp_name = $row_sum["corp_name"];
+        $corp_name = ereg_replace("株式会社","",$corp_name);
+        $corp_name = ereg_replace("有限会社","",$corp_name);
+        $corp_name = ereg_replace("合資会社","",$corp_name);
+        $corp_name = ereg_replace("合名会社","",$corp_name);
+        $corp_name = ereg_replace("財団法人","",$corp_name);
+        $corp_name = ereg_replace("社団法人","",$corp_name);
+        $corp_name = ereg_replace("学校法人","",$corp_name);
+        $corp_name = ereg_replace("宗教法人","",$corp_name);
+        $corp_name = ereg_replace("特定非営利活動法人","",$corp_name);
+        $corp_name = ereg_replace("NPO法人","",$corp_name);
+        $corp_name = ereg_replace("社会福祉法人","",$corp_name);
+        $corp_name = ereg_replace("公益法人","",$corp_name);
+        $corp_name = ereg_replace("医療法人","",$corp_name);
+        $corp_name = ereg_replace("事業協同組合","",$corp_name);
+        $corp_name = ereg_replace("協同組合連合会","",$corp_name);
+        $corp_name = ereg_replace("企業組合","",$corp_name);
+        $corp_name = ereg_replace("協業組合","",$corp_name);
+        $corp_name = ereg_replace("振興組合","",$corp_name);
+        $corp_name = trim($corp_name);
+        $corp_name = mberegi_replace("　","",$corp_name);
+        $pagetitle .= $corp_name;
+      }
+    }
+  } elseif($type=="C" || $type=="P") {
+    // 会社/個人検索時
+    if ($char == "A") {
+      if ($subchar == "A") {
+        $pagetitle .= "あ";
+      } elseif ($subchar == "I") {
+        $pagetitle .= "い";
+      } elseif ($subchar == "U") {
+        $pagetitle .= "う";
+      } elseif ($subchar == "E") {
+        $pagetitle .= "え";
+      } elseif ($subchar == "O") {
+        $pagetitle .= "お";
+      }
+    } elseif ($char == "K") {
+      if ($subchar == "A") {
+        $pagetitle .= "か";
+      } elseif ($subchar == "I") {
+        $pagetitle .= "き";
+      } elseif ($subchar == "U") {
+        $pagetitle .= "く";
+      } elseif ($subchar == "E") {
+        $pagetitle .= "け";
+      } elseif ($subchar == "O") {
+        $pagetitle .= "こ";
+      }
+    } elseif ($char == "S") {
+      if ($subchar == "A") {
+        $pagetitle .= "さ";
+      } elseif ($subchar == "I") {
+        $pagetitle .= "し";
+      } elseif ($subchar == "U") {
+        $pagetitle .= "す";
+      } elseif ($subchar == "E") {
+        $pagetitle .= "せ";
+      } elseif ($subchar == "O") {
+        $pagetitle .= "そ";
+      }
+    } elseif ($char == "T") {
+      if ($subchar == "A") {
+        $pagetitle .= "た";
+      } elseif ($subchar == "I") {
+        $pagetitle .= "ち";
+      } elseif ($subchar == "U") {
+        $pagetitle .= "つ";
+      } elseif ($subchar == "E") {
+        $pagetitle .= "て";
+      } elseif ($subchar == "O") {
+        $pagetitle .= "と";
+      }
+    } elseif ($char == "N") {
+      if ($subchar == "A") {
+        $pagetitle .= "な";
+      } elseif ($subchar == "I") {
+        $pagetitle .= "に";
+      } elseif ($subchar == "U") {
+        $pagetitle .= "ぬ";
+      } elseif ($subchar == "E") {
+        $pagetitle .= "ね";
+      } elseif ($subchar == "O") {
+        $pagetitle .= "の";
+      }
+    } elseif ($char == "H") {
+      if ($subchar == "A") {
+        $pagetitle .= "は";
+      } elseif ($subchar == "I") {
+        $pagetitle .= "ひ";
+      } elseif ($subchar == "U") {
+        $pagetitle .= "ふ";
+      } elseif ($subchar == "E") {
+        $pagetitle .= "へ";
+      } elseif ($subchar == "O") {
+        $pagetitle .= "ほ";
+      }
+    } elseif ($char == "M") {
+      if ($subchar == "A") {
+        $pagetitle .= "ま";
+      } elseif ($subchar == "I") {
+        $pagetitle .= "み";
+      } elseif ($subchar == "U") {
+        $pagetitle .= "む";
+      } elseif ($subchar == "E") {
+        $pagetitle .= "め";
+      } elseif ($subchar == "O") {
+        $pagetitle .= "も";
+      }
+    } elseif ($char == "Y") {
+      if ($subchar == "A") {
+        $pagetitle .= "や";
+      } elseif ($subchar == "U") {
+        $pagetitle .= "ゆ";
+      } elseif ($subchar == "O") {
+        $pagetitle .= "よ";
+      }
+    } elseif ($char == "R") {
+      if ($subchar == "A") {
+        $pagetitle .= "ら";
+      } elseif ($subchar == "I") {
+        $pagetitle .= "り";
+      } elseif ($subchar == "U") {
+        $pagetitle .= "る";
+      } elseif ($subchar == "E") {
+        $pagetitle .= "れ";
+      } elseif ($subchar == "O") {
+        $pagetitle .= "ろ";
+      }
+    } elseif ($char == "W") {
+      if ($subchar == "A") {
+        $pagetitle .= "わ";
+      } elseif ($subchar == "O") {
+        $pagetitle .= "を";
+      } elseif ($subchar == "O") {
+        $pagetitle .= "ん";
+      }
+    } elseif ($char == "Z") {
+      $pagetitle .= "英数字";
+    }
+
+    if ($type=="C") {
+      $pagetitle .= "-会社検索";
+    } else {
+      $pagetitle .= "-氏名検索";
+    }
+  }
+
+  // ヘッダ表示
+  include ("../header.inc.php");
+
+  // エラーチェック
+  if ($login == false) {
+    $MES[] = "先に、ログインしてください ⇒ <A HREF=\"/i/\">ログインページへ</A>";
+  } else {
+    if (trim($login_id) == "") {
+      $MES[] = "ユーザーIDが正しくありません";
+    } else {
+      $sql = "select * from users where id='".$login_id."'";
+      $txt.= "<!--";
+      $res = pg_query($conn, $sql);
+      if (pg_num_rows($res) < 1) {
+        $MES[] = "ユーザーIDが正しくありません".$sql;
+      } else {
+        $row = pg_fetch_array($res,0);
+      }
+      $txt.= "-->";
+    }
+  }
+
+  if($type=="K") {
+    $kwd = remove_emoji(textsafe($kwd));
+    $kwds = $kwd;
+    $kwds = mb_convert_kana($kwds,"KVa","SJIS");
+    $kwds = str_replace("-", " ", $kwds);
+    $kwds = str_replace(",", " ", $kwds);
+    $kwds = str_replace("、", " ", $kwds);
+    $kwds = trim($kwds);
+    $kwds = ereg_replace("'","’",$kwds);
+    $searchkeys = preg_split(" ",sjis2euc($kwds));
+    if ($kwds == "") {
+      $MES[] = "キーワード未入力";
+    }
+  }
+
+  if (sizeof($MES) > 0) {
+    $txt.= "<FONT COLOR=#FF0000><CENTER>";
+    for ($i=0;$i<sizeof($MES);$i++) {
+      $txt.= $MES[$i]."<br>\n";
+    }
+    if ($type=="K") {
+      $txt.= "<BR>\n";
+      $txt.= "<FORM ACTION=\"./search.phtml\" METHOD=POST>";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=\"$ms\">\n";
+      $txt.= "<INPUT TYPE=SUBMIT VALUE=\"戻る\">\n";
+      $txt.= "</FORM>\n";
+    }
+    pg_free_result($res);
+#      include ("./footer.inc.php");
+    exit;
+  } else {
+
+    // 一覧
+    if ($type=="C") {
+      $sql = "SELECT corp_kana,min(corp_name) as corp_name,min(seqno) as seqno FROM address ";
+      $targetkey = "corp_kana";
+      $address_rows = $address_rows_corp;
+    } elseif ($type=="P") {
+      $sql = "SELECT * FROM address ";
+      $targetkey = "person_kana";
+      $address_rows = $address_rows_people;
+    } elseif ($type=="CP") {
+      $sql = "SELECT * FROM address ";
+      $targetkey = "person_kana";
+      $address_rows = $address_rows_people;
+
+      $sql_sum = "SELECT corp_kana,corp_name FROM address WHERE seqno=".$cno;
+      $res_sum = pg_query($conn,$sql_sum);
+      $cnt_sum = pg_num_rows($res_sum);
+      if ($cnt_sum>0) {
+        $row_sum = pg_fetch_array($res_sum,0);
+        $sum_corp_name = $row_sum["corp_name"];
+        $sum_corp_kana = $row_sum["corp_kana"];
+      }
+    } elseif ($type=="K") {
+      // 検索
+      $sql = "SELECT * FROM address ";
+    }
+
+    $key = "";
+
+    if ($type != "CP" && $type != "K") {
+      if ($char == "A") {
+        if ($subchar == "A") {
+          $key .= $targetkey ." ~* '^[あぁアァ]'";
+        } elseif ($subchar == "I") {
+          $key .= $targetkey ." ~* '^[いぃイィ]'";
+        } elseif ($subchar == "U") {
+          $key .= $targetkey ." ~* '^[うぅウゥ]'";
+        } elseif ($subchar == "E") {
+          $key .= $targetkey ." ~* '^[えぇエェ]'";
+        } elseif ($subchar == "O") {
+          $key .= $targetkey ." ~* '^[おぉオォ]'";
+        }
+      } elseif ($char == "K") {
+        if ($subchar == "A") {
+          $key .= $targetkey ." ~* '^[かがカガ]'";
+        } elseif ($subchar == "I") {
+          $key .= $targetkey ." ~* '^[きぎキギ]'";
+        } elseif ($subchar == "U") {
+          $key .= $targetkey ." ~* '^[くぐクグ]'";
+        } elseif ($subchar == "E") {
+          $key .= $targetkey ." ~* '^[けげケゲ]'";
+        } elseif ($subchar == "O") {
+          $key .= $targetkey ." ~* '^[こごコゴ]'";
+        }
+      } elseif ($char == "S") {
+        if ($subchar == "A") {
+          $key .= $targetkey ." ~* '^[さざサザ]'";
+        } elseif ($subchar == "I") {
+          $key .= $targetkey ." ~* '^[しじシジ]'";
+        } elseif ($subchar == "U") {
+          $key .= $targetkey ." ~* '^[すずスズ]'";
+        } elseif ($subchar == "E") {
+          $key .= $targetkey ." ~* '^[せぜセゼ]'";
+        } elseif ($subchar == "O") {
+          $key .= $targetkey ." ~* '^[そぞソゾ]'";
+        }
+      } elseif ($char == "T") {
+        if ($subchar == "A") {
+          $key .= $targetkey ." ~* '^[ただタダ]'";
+        } elseif ($subchar == "I") {
+          $key .= $targetkey ." ~* '^[ちぢチヂ]'";
+        } elseif ($subchar == "U") {
+          $key .= $targetkey ." ~* '^[つづっツヅッ]'";
+        } elseif ($subchar == "E") {
+          $key .= $targetkey ." ~* '^[てでテデ]'";
+        } elseif ($subchar == "O") {
+          $key .= $targetkey ." ~* '^[とどトド]'";
+        }
+      } elseif ($char == "N") {
+        if ($subchar == "A") {
+          $key .= $targetkey ." ~* '^[なナ]'";
+        } elseif ($subchar == "I") {
+          $key .= $targetkey ." ~* '^[にニ]'";
+        } elseif ($subchar == "U") {
+          $key .= $targetkey ." ~* '^[ぬヌ]'";
+        } elseif ($subchar == "E") {
+          $key .= $targetkey ." ~* '^[ねネ]'";
+        } elseif ($subchar == "O") {
+          $key .= $targetkey ." ~* '^[のノ]'";
+        }
+      } elseif ($char == "H") {
+        if ($subchar == "A") {
+          $key .= $targetkey ." ~* '^[はばぱハバパ]'";
+        } elseif ($subchar == "I") {
+          $key .= $targetkey ." ~* '^[ひびぴヒビピ]'";
+        } elseif ($subchar == "U") {
+          $key .= $targetkey ." ~* '^[ふぶぷフブプ]'";
+        } elseif ($subchar == "E") {
+          $key .= $targetkey ." ~* '^[へべぺヘベペ]'";
+        } elseif ($subchar == "O") {
+          $key .= $targetkey ." ~* '^[ほぼぽホボポ]'";
+        }
+      } elseif ($char == "M") {
+        if ($subchar == "A") {
+          $key .= $targetkey ." ~* '^[まマ]'";
+        } elseif ($subchar == "I") {
+          $key .= $targetkey ." ~* '^[みミ]'";
+        } elseif ($subchar == "U") {
+          $key .= $targetkey ." ~* '^[むム]'";
+        } elseif ($subchar == "E") {
+          $key .= $targetkey ." ~* '^[めメ]'";
+        } elseif ($subchar == "O") {
+          $key .= $targetkey ." ~* '^[もモ]'";
+        }
+      } elseif ($char == "Y") {
+        if ($subchar == "A") {
+          $key .= $targetkey ." ~* '^[やゃヤャ]'";
+        } elseif ($subchar == "U") {
+          $key .= $targetkey ." ~* '^[ゆゅユュ]'";
+        } elseif ($subchar == "O") {
+          $key .= $targetkey ." ~* '^[よょヨョ]'";
+        }
+      } elseif ($char == "R") {
+        if ($subchar == "A") {
+          $key .= $targetkey ." ~* '^[らラ]'";
+        } elseif ($subchar == "I") {
+          $key .= $targetkey ." ~* '^[りリ]'";
+        } elseif ($subchar == "U") {
+          $key .= $targetkey ." ~* '^[るル]'";
+        } elseif ($subchar == "E") {
+          $key .= $targetkey ." ~* '^[れレ]'";
+        } elseif ($subchar == "O") {
+          $key .= $targetkey ." ~* '^[ろロ]'";
+        }
+      } elseif ($char == "W") {
+        if ($subchar == "A") {
+          $key .= $targetkey ." ~* '^[わワ]'";
+        } elseif ($subchar == "O") {
+          $key .= $targetkey ." ~* '^[をヲ]'";
+        } elseif ($subchar == "O") {
+          $key .= $targetkey ." ~* '^[んン]'";
+        }
+      } elseif ($char == "Z") {
+        if ($type=="C") {
+          $key .= "(".$targetkey ." ~* '^[ａ−ｚＡ−Ｚ０-９a-zA-Z0-9]' or ".$targetkey ." = '' and corp_name = '')";
+        } else {
+          $key .= "(".$targetkey ." ~* '^[ａ−ｚＡ−Ｚ０-９a-zA-Z0-9]' or ".$targetkey ." = '' and person_name = '')";
+        }
+      }
+    } elseif($type=="CP") {
+      $key .= "(corp_kana = '$sum_corp_kana' or corp_name = '$sum_corp_name' )";
+    } elseif($type=="K") {
+      $targetkey = "person_kana";
+      $c=0;
+      while (list($seq,$searchkey)=each($searchkeys)) {
+        $searchkey_katakana = arrange_katakana($searchkey);
+        if ($c>0) $key .= " and ";
+        $key .= "(";
+        $key .= "corp_name ~* '".$searchkey."' or ";
+        $key .= "corp_kana ~* '".$searchkey_katakana."' or ";
+        $key .= "corp_email ~* '".$searchkey."' or ";
+        $key .= "corp_url ~* '".$searchkey."' or ";
+        $key .= "corp_zip ~* '".$searchkey."' or ";
+        $key .= "corp_state ~* '".$searchkey."' or ";
+        $key .= "corp_city ~* '".$searchkey."' or ";
+        $key .= "corp_street ~* '".$searchkey."' or ";
+        $key .= "corp_build ~* '".$searchkey."' or ";
+        $key .= "corp_tel ~* '".$searchkey."' or ";
+        $key .= "corp_fax ~* '".$searchkey."' or ";
+        $key .= "person_depa ~* '".$searchkey."' or ";
+        $key .= "person_post ~* '".$searchkey."' or ";
+        $key .= "person_name ~* '".$searchkey."' or ";
+        $key .= "person_kana ~* '".$searchkey_katakana."' or ";
+        $key .= "person_email ~* '".$searchkey."' or ";
+        $key .= "person_email2 ~* '".$searchkey."' or ";
+        $key .= "person_dialin ~* '".$searchkey."' or ";
+        $key .= "person_handy ~* '".$searchkey."' or ";
+        $key .= "person_zip ~* '".$searchkey."' or ";
+        $key .= "person_state ~* '".$searchkey."' or ";
+        $key .= "person_city ~* '".$searchkey."' or ";
+        $key .= "person_street ~* '".$searchkey."' or ";
+        $key .= "person_build ~* '".$searchkey."' or ";
+        $key .= "person_tel ~* '".$searchkey."' or ";
+        $key .= "person_fax ~* '".$searchkey."' or ";
+        $key .= "comment ~* '".$searchkey."')";
+        $c++;
+      }
+    }
+
+    if ($type=="C") {
+      $key .= " AND corp_kana <> ''";
+    }
+
+    if ($key != "") {
+      $sql .= "WHERE ".$key;
+    }
+
+    if ($type=="C") {
+      $sql .= "GROUP BY ".$targetkey;
+    }
+
+    $sql .= " ORDER BY ".$targetkey;
+    if ($adr_sort=="desc") { $sql .= " DESC"; }
+    $res = pg_query($conn,$sql);
+    $cnt = pg_num_rows($res);
+
+    if ($cnt == 0) {
+      $txt.= "該当なし<BR>\n";
+    } else {
+      if (empty($r) or $r<1) $r=1; //開始行
+      $min = $r-1;
+      $max = $r+9-1;
+      if ($max+1 > $cnt) $max = $cnt;
+
+      // 前ページへ移動表示
+      if ($min > 0) {
+        $txt.= "<DIV ALIGN=CENTER>";
+        $txt.= "<A HREF=\"./list.phtml".$serial."&char=$char&subchar=$subchar&type=$type&r=".($min-9)."\">&lt;前の9件&gt;</A>";
+        $txt.= "</DIV>\n";
+      }
+
+      $c = 0;
+      for($k=$min;$k<$max;$k++) {
+        $c++;
+        $row = pg_fetch_array($res,$k);
+
+        if ($type=="C") {
+          $txt.= "<A HREF=\"./list.phtml".$serial."&type=CP&cno=".$row["seqno"]."\" ".$accesskey."=".$c.">";
+          echo_emoji($c);
+        } else {
+          $txt.= "<A HREF=\"./view.phtml".$serial."&seqno=".$row["seqno"]."\" ".$accesskey."=".$c.">";
+          echo_emoji($c);
+        }
+
+        if ($type=="C") {
+          $corp_name = $row["corp_name"];
+          $corp_name = ereg_replace("株式会社","",$corp_name);
+          $corp_name = ereg_replace("有限会社","",$corp_name);
+          $corp_name = ereg_replace("合資会社","",$corp_name);
+          $corp_name = ereg_replace("合名会社","",$corp_name);
+          $corp_name = ereg_replace("財団法人","",$corp_name);
+          $corp_name = ereg_replace("社団法人","",$corp_name);
+          $corp_name = ereg_replace("学校法人","",$corp_name);
+          $corp_name = ereg_replace("宗教法人","",$corp_name);
+          $corp_name = ereg_replace("特定非営利活動法人","",$corp_name);
+          $corp_name = ereg_replace("NPO法人","",$corp_name);
+          $corp_name = ereg_replace("社会福祉法人","",$corp_name);
+          $corp_name = ereg_replace("公益法人","",$corp_name);
+          $corp_name = ereg_replace("医療法人","",$corp_name);
+          $corp_name = ereg_replace("事業協同組合","",$corp_name);
+          $corp_name = ereg_replace("協同組合連合会","",$corp_name);
+          $corp_name = ereg_replace("企業組合","",$corp_name);
+          $corp_name = ereg_replace("協業組合","",$corp_name);
+          $corp_name = ereg_replace("振興組合","",$corp_name);
+          $corp_name = trim($corp_name);
+          $corp_name = mberegi_replace("　","",$corp_name);
+
+          $txt.= str_cut($corp_name,$charW*2-2);
+        } else {
+          $txt.= str_cut($row["person_name"],$charW*2-2);
+        }
+        $txt.= "</A><BR>\n";
+
+      }
+
+      if ($max<$cnt) {
+        $txt.= "<DIV ALIGN=CENTER>";
+        $txt.= "<A HREF=\"./list.phtml".$serial."&char=".$char."&subchar=".$subchar."&type=$type&r=".($max+1)."\">&lt;次の9件&gt;</A>";
+        $txt.= "</DIV>\n";
+      }
+    }
+  }
+
+	$txt.= "<hr size=\"0\">";
+	$txt.= "<DIV ALIGN=RIGHT>&emoji0;<A HREF=\"./regist/".$serial."\" ".$accesskey."=0>新規住所</A></DIV>";
+
+	include ("../footer.inc.php");
+?>

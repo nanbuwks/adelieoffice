@@ -1,0 +1,144 @@
+<?php
+  include "../../config.inc.php"; include "../../lib.inc.php";
+
+  $linktext  = "<A HREF=\"../../\" CLASS=\"BAR\">トップページ</A> &gt; ";
+  $linktext .= "<A HREF=\"../\" CLASS=\"BAR\">備忘録</A> &gt; ";
+  if (empty($seqno)) {
+    $linktext .= "<FONT COLOR=#FFFF00>メモの登録</FONT>";
+  } else {
+    $linktext .= "<FONT COLOR=#FFFF00>メモの確認</FONT>";
+  }
+
+	if (empty($todo_sort) or $todo_sort=="") { $todo_sort = "stamp"; }
+
+  include "../../header.inc.php"; flush();
+
+	$pagetext .= "
+<TABLE BORDER=0 CELLPADDING=2 CELLSPACING=0 width=100%><FORM><TR>
+<TD ALIGN=LEFT VALIGN=MIDDLE>&nbsp;</TD>
+<TD ALIGN=RIGHT VALIGN=MIDDLE>
+&nbsp;<A HREF=\"./\"><IMG SRC=\"../../image/entrysadd.gif\" WIDTH=10 HEIGHT=9 BORDER=0 ALIGN=ABSMIDDLE ALT=\"メモの追加\">新しいメモ</A>
+<!--&nbsp;<A HREF=\"#\" ONCLICK=\"delConf()\"><IMG SRC=\"../../image/eraser.gif\" WIDTH=14 HEIGHT=14 BORDER=0 ALIGN=ABSMIDDLE ALT=\"メモの全件削除\">全て削除</A>-->
+</TD>
+</TR></FORM></TABLE>
+";
+
+  if ($login && sizeof($MES)==0) {
+	  include "../menu.inc.php";
+    $subject = textsafe($_POST["subject"]);
+    $body    = textsafe($_POST["body"]);
+
+    // 前処理
+    if (empty($seqno)){
+      $seqno = 0; // 新規時
+#      $subject  = "";
+#      $body     = "";
+      $priority = 3;
+    } else {
+      $sql = "SELECT * FROM todos WHERE seqno=".$seqno." AND user_id='".$login_id."'";
+      $res = pg_query($conn,$sql);
+      if (pg_num_rows($res)>0) {
+        $row = pg_fetch_array($res,0);
+        $priority = $row["priority"];
+        $subject  = $row["subject"];
+        $body     = $row["body"];
+
+        $pagetext .= "<INPUT type=\"hidden\" name=\"seqno\" value=".$seqno.">\n";
+      } else {
+        $DMES[] = "既に指定されたメモは既に削除されたか登録されていません";
+      }
+    }
+
+    if (sizeof($DMES)>0) {
+      // エラー時
+      $pagetext .= "<BR>\n";
+      $pagetext .= "<TABLE BORDER=0 WIDTH=100%><FORM>";
+      $pagetext .= "<TR><TD ALIGN=CENTER><FONT COLOR=#FF0000>";
+      // エラーメッセージ出力
+      while (list($key,$val)=each($DMES)) {
+        $pagetext .= $val."<BR>\n";
+      }
+      $pagetext .= "<BR>\n";
+      $pagetext .= "<INPUT TYPE=button VALUE=\"戻る\" onClick=\"history.back()\">\n";
+
+      $pagetext .= "</TD></TR></FORM></TABLE>\n";
+    } else {
+      // 正常処理
+      $pagetext .= "
+<SCRIPT LANGUAGE=\"JavaScript\">
+<!--
+  function delwin(seqno) {
+    if(confirm(\"このメモを削除しますか。\\n注:一度削除したメモを戻すことはできません。\")) {
+      window.open(\"../del/?p=$p&seqno=\"+seqno,\"_self\");
+    }
+  }
+//-->
+</SCRIPT>";
+
+#			$pagetext .= "<CENTER><BR>";
+#      if (!empty($seqno) && $seqno>0) {
+#				$pagetext .= "修正が終わったら必ず「更新」ボタンを押してください<BR>";
+#			} else {
+#				$pagetext .= "タイトルと内容を入力して「登録」ボタンを押してください<BR>";
+#			}
+#			$pagetext .= "<BR></CENTER>";
+
+			$pagetext .= "<TABLE WIDTH=100%>
+<FORM ACTION=\"./add.phtml\" METHOD=POST>
+<TR><TD VALIGN=TOP ALIGN=CENTER>
+<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"$p\">
+<INPUT TYPE=HIDDEN NAME=\"seqno\" VALUE=\"$seqno\">
+<INPUT TYPE=HIDDEN NAME=\"old_priority\" VALUE=\"$priority\">
+<TABLE BORDER=0 CELLPADDING=4 CELLSPACING=1 ALIGN=CENTER BGCOLOR=#666666>
+<TR>
+<TD ALIGN=LEFT BGCOLOR=$td_back_left VALIGN=TOP>タイトル:
+<INPUT TYPE=TEXT SIZE=46 NAME=\"subject\" VALUE=\"$subject\" STYLE=\"width:340px;ime-mode:active\"><BR>";
+
+      $pagetext .= "<TABLE CELLPADDING=0 CELLPADDING=0 BORDER=0>
+<TR><TD><FONT STYLE=\"font-size:85%\">&nbsp;重要度:　&nbsp;</TD>
+";
+      for($i=3;$i>0;$i--) {
+        $pagetext .= "<TD BGCOLOR=".$priority_color[$i-1]." ALIGN=CENTER><FONT STYLE=\"font-size:85%\">";
+        $pagetext .= "　<INPUT TYPE=\"RADIO\" NAME=\"priority\" VALUE=\"".$i."\"";
+        if ($priority == $i) {
+           $pagetext .= " checked";
+        }
+        if (empty($priority) and $i == 3){
+          $pagetext .= " checked";
+        }
+        $pagetext .= ">";
+        $pagetext .= "".$priority_name[$i-1]."　&nbsp;";
+        $pagetext .= "</TD>";
+      }
+
+      $pagetext .= "</TR></TABLE>";
+
+      $pagetext .= "</TD></TR>";
+
+			$pagetext .= "<TR><TD ALIGN=LEFT BGCOLOR=$td_back VALIGN=TOP>";
+		  $pagetext .= "<TEXTAREA NAME=\"body\" COLS=52 ROWS=20 STYLE=\"width:440px;height:240px;ime-mode:active\">";
+	    $pagetext .= $body;
+	    $pagetext .= "</TEXTAREA>";
+
+		  $pagetext .= "</TD></TR></TABLE>\n";
+
+		  $pagetext .= "<BR>\n";
+
+		  $pagetext .= "<TABLE BORDER=0 CELLPADDING=4 CELLSPACING=0 ALIGN=CENTER><TR>";
+
+		  if ($seqno != 0){
+        $pagetext .= "<TD><INPUT TYPE=SUBMIT VALUE=\"更新\" accesskey=\"R\" style=\"width:100px\"></TD>\n";
+        $pagetext .= "<TD><INPUT TYPE=button VALUE=\"削除\" onclick=\"delwin('".$seqno."')\" accesskey=\"D\" style=\"width:60px;background-color:#FFCCCC\"></TD>\n";
+      } else {
+        $pagetext .= "<TD><INPUT TYPE=SUBMIT VALUE=\"登録\" accesskey=\"R\" style=\"width:100px\"></TD>\n";
+      }
+      $pagetext .= "
+</TR></TABLE>
+</TD></TR></FORM></TABLE>
+";
+    }
+  }
+
+  include "../../detail.inc.php";
+  include "../../footer.inc.php";
+?>

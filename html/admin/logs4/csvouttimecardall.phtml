@@ -1,0 +1,125 @@
+<?php
+  include "../../config.inc.php"; include "../../lib.inc.php";
+  include "../../login_check.inc.php"; // ログインチェック
+
+  $y =   $_GET["y"];
+  $m =   $_GET["m"];
+  $id =   $_GET["id"];
+
+  
+
+
+
+
+
+  if ($login && $admin_sign == 't') {
+    // データ準備
+    if (is_numeric($y) && is_numeric($m) && checkdate($m,1,$y)) {
+      // modify by nanbuwks 20111122
+      //$firststamp = mktime(0, 0, 0, $m, 1, $y);
+      if ( !is_numeric($d)) {
+        $d = 1;
+      }
+    } else {
+      // modify by nanbuwks 20111122
+      //$m = date("m",time()+86400*6);
+      //$y = date("Y",time()+86400*6);
+      //$firststamp = mktime(0, 0, 0, $m, 1, $y);
+      $d = date("d",time());
+      $m = date("m",time());
+      $y = date("Y",time());
+    }
+    // add by nanbuwks 20111122
+    $limitDay=21;
+    if ( $limitDay <=  $d )
+       {
+           $startY = date("Y",mktime(0,0,0,$m,$limitDay,$y));
+           $startM = date("m",mktime(0,0,0,$m,$limitDay,$y));
+           $nenDo  = date("Y",mktime(0,0,0,$m+1,$limitDay,$y));
+           $gatuDo = date("m",mktime(0,0,0,$m+1,$limitDay,$y));
+        } else {
+           $startY = date("Y",mktime(0,0,0,$m-1,$limitDay,$y));
+           $startM = date("m",mktime(0,0,0,$m-1,$limitDay,$y));
+           $nenDo  = date("Y",mktime(0,0,0,$m,$limitDay,$y));
+           $gatuDo = date("m",mktime(0,0,0,$m,$limitDay,$y));
+        }
+    $firststamp = mktime(0, 0, 0, $startM, $limitDay, $startY);
+    $dayCount = date("d",mktime(0,0,0,$startM+1,0,$y))-1; // start from 0
+    }
+  // ダウンロードテーブルオープン
+  // modify by nanbuwks 20111124,20111224
+  $sql = "SELECT timecard_data.user_id AS ID ,timecard_calender.日付,timecard_data.startstamp,timecard_data.endstamp,timecard_data.goesstamp,timecard_data.backstamp,timecard_data.note,timecard_data.createstamp,timecard_data.updatestamp
+            FROM (
+                    SELECT  '".$startY."-".$startM."-".$limitDay."'::date + serial.arr AS 日付 FROM  GENERATE_SERIES(0,".$dayCount.") serial(arr)
+                 ) AS timecard_calender
+            LEFT JOIN ( SELECT * FROM users_duty  )
+                             AS timecard_data ON timecard_calender.日付 = timecard_data.workdate"; 
+//  $sql = "SELECT * FROM users_duty WHERE user_id='".$id."' AND workdate>='".date("Y-m-d",$firststamp)."' AND workdate<='".date("Y-m-d",$laststamp)."' ORDER BY workdate";
+//  echo $sql;
+//  exit(0);
+
+  $res = pg_query($conn,$sql);
+  $cnt = pg_num_rows($res);
+
+  // 件数確認
+  if ($cnt<1) {
+    $MES[] = "データ未登録";
+  }
+
+  // エラー処理
+  if (sizeof($MES)>0) {
+    header("HTTP/1.1 404 Not Found");
+  } else {
+    // ヘッダー出力
+    header("Content-Type: application/octet-stream\n"); 
+    header("Content-Type: application/download"); 
+    header("Content-Disposition: attachment; filename=\"timecard.csv\""); 
+    header("Content-Disposition: filename=\"timecard.csv\""); 
+    header("Content-Description: Generated Data");
+    header("Content-Transfer-Encoding: binary"); 
+
+  // 2011-05-16 ,20111122 modity nanbuwks
+  //  print euc2sjis('"日付","出社時刻","退社時刻","外出時刻","戻り時刻","コメント","作成日時","更新日時"'."\n");
+    print utf2sjis('"ID","日付","出社時刻","退社時刻","外出時刻","戻り時刻","コメント","作成日時","更新日時"'."\n");
+    for ($i=0;$i<$cnt;$i++) {
+      $row = pg_fetch_array($res,$i);
+//    modify by nanbuwks 20111124      
+//      print '"'.date("Y/m/d",date2timestamp($row["workdate"])).'",';
+      print $row["id"].",";
+      print $row["日付"].",";
+
+      if ($row["startstamp"]!="") {
+        print '"'.date("H:i",datetime2timestamp($row["startstamp"])).'",';
+      } else {
+        print ',';
+      }
+      if ($row["endstamp"]!="") {
+        print '"'.date("H:i",datetime2timestamp($row["endstamp"])).'",';
+      } else {
+        print ',';
+      }
+      if ($row["goesstamp"]!="") {
+        print '"'.date("H:i",datetime2timestamp($row["goesstamp"])).'",';
+      } else {
+        print ',';
+      }
+      if ($row["backstamp"]!="") {
+        print '"'.date("H:i",datetime2timestamp($row["backstamp"])).'",';
+      } else {
+        print ',';
+      }
+      print '"'.$note.'",';
+
+      if ($row["createstamp"]!="") {
+        print '"'.date("Y/m/d H:i",datetime2timestamp($row["createstamp"])).'",';
+      } else {
+        print ',';
+      }
+      if ($row["updatestamp"]!="") {
+        print '"'.date("Y/m/d H:i",datetime2timestamp($row["updatestamp"])).'"'."\n";
+      } else {
+        print ''."\n";
+      }
+    }
+  }
+?>

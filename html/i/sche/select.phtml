@@ -1,0 +1,31 @@
+<?php
+  include ("../../config.inc.php"); include ("../../lib.inc.php");
+  include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+  include ("../header.inc.php");
+
+  if ($login) {
+    $txt.= "閲覧する日を選択してください<BR>";
+    $txt.= "<FORM ACTION=\"./daily.phtml\" METHOD=\"post\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=\"$ms\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=uid VALUE=\"$uid\">";
+    $txt.= "<CENTER>";
+    $txt.= "<SELECT NAME=\"y\">";
+    for ($i=date("Y")-2;$i<date("Y")+3;$i++) {
+      $txt.= "<OPTION VALUE=$i";
+      if ($i == date("Y")) {
+        $txt.= " SELECTED";
+      }
+      $txt.= ">".$i;
+    }
+    $txt.= "</SELECT>/";
+    $txt.= "<INPUT TYPE=TEXT NAME=m VALUE=\"".date("m")."\" SIZE=2 MAXLENGTH=2 ".inputmode("numeric").">/";
+    $txt.= "<INPUT TYPE=TEXT NAME=d VALUE=\"".date("d")."\" SIZE=2 MAXLENGTH=2 ".inputmode("numeric").">";
+    $txt.= "<BR>\n";
+    $txt.= "<INPUT TYPE=SUBMIT VALUE=\"表示\">";
+    $txt.= "</CENTER>\n";
+    $txt.= "</FORM>\n";
+  }
+  // フッタ表示
+  include ("../footer.inc.php");
+?>

@@ -1,0 +1,228 @@
+<?php
+include ("../../config.inc.php"); include ("../../lib.inc.php");
+include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+$pagetitle = "予定表 表示者変更";
+include ("../header.inc.php");
+
+if ($login) {
+	## 変数設定
+	$txt    = "";
+	$MES    = array();
+	$maxrow = "9";
+	$ms     = "";
+	$uid    = $login_id;
+	$y      = "";
+	$m      = "";
+	$d      = "";
+	$grp    = "";
+	$oldgrp = "";
+	$next   = "";
+	$prev   = "";
+	$grpchg = "";
+	$n      = "1";
+
+	## ユーザー数が11人以上の場合には「全員」は非表示
+	$cnt_user = get_count("users","");
+
+	## 変数処理
+	if (isset($_POST["grpchg"])) $grpchg = textsafe(sjis2euc($_POST["grpchg"]));
+	if (isset($_POST["next"]))   $next = textsafe(sjis2euc($_POST["next"]));
+	if (isset($_POST["prev"]))   $prev = textsafe(sjis2euc($_POST["prev"]));
+
+	if (!empty($grpchg) || !empty($next) || !empty($prev)) {
+		if (isset($_POST["ms"]))     $ms     = textsafe(sjis2euc($_POST["ms"]));
+		if (isset($_POST["uid"]))    $uid    = textsafe(sjis2euc($_POST["uid"]));
+		if (isset($_POST["y"]))      $y      = textsafe(sjis2euc($_POST["y"]));
+		if (isset($_POST["m"]))      $m      = textsafe(sjis2euc($_POST["m"]));
+		if (isset($_POST["d"]))      $d      = textsafe(sjis2euc($_POST["d"]));
+		if (isset($_POST["n"]))      $n      = textsafe(sjis2euc($_POST["n"]));
+		if (isset($_POST["grp"]))    $grp    = textsafe(sjis2euc($_POST["grp"]));
+		if (isset($_POST["oldgrp"])) $oldgrp = textsafe(sjis2euc($_POST["oldgrp"]));
+		if (!empty($next)) $n++;
+		if (!empty($prev)) $n--;
+	} else {
+		if (isset($_GET["ms"]))  $ms  = textsafe(sjis2euc($_GET["ms"]));
+		if (isset($_GET["uid"])) $uid = textsafe(sjis2euc($_GET["uid"]));
+		if (isset($_GET["y"]))   $y   = textsafe(sjis2euc($_GET["y"]));
+		if (isset($_GET["m"]))   $m   = textsafe(sjis2euc($_GET["m"]));
+		if (isset($_GET["d"]))   $d   = textsafe(sjis2euc($_GET["d"]));
+	}
+
+	## グループ情報の取得
+	$arr_group = array();
+	$sql = "SELECT name,id,viewsign FROM groups ORDER BY seqno";
+	$res = pg_query($conn,$sql);
+	$cnt = pg_num_rows($res);
+	if ($cnt>0) {
+		for ($i=0;$i<$cnt;$i++) {
+			$row = pg_fetch_array($res,$i);
+			if ($row["viewsign"]=="t") {
+				$arr_group[$row["id"]] = $row["name"];
+				if (empty($grp) && $cnt_user) { $grp = $row["id"]; }
+			} else {
+				$sql_chk = "SELECT user_id FROM users_entry";
+				$sql_chk.= " WHERE user_id='".$login_id."' AND group_id='".$row["id"]."' LIMIT 1";
+				$res_chk = pg_query($conn,$sql_chk);
+				$cnt_chk = pg_num_rows($res_chk);
+				if ($cnt_chk>0) {
+					$arr_group[$row["id"]] = $row["name"];
+					if (empty($grp) && $cnt_user) { $grp = $row["id"]; }
+				}
+				pg_free_result($res_chk);
+			}
+		}
+	}
+	pg_free_result($res);
+
+	## ユーザー情報の取得
+	$arr_user = array();
+	$sql = "SELECT id,name_ryaku FROM users";
+	$sql.= " WHERE id='".$login_id."' LIMIT 1";
+	$res = pg_query($conn,$sql);
+	$cnt = pg_num_rows($res);
+	if ($cnt>0) {
+		for ($i=0;$i<$cnt;$i++) {
+			$row = pg_fetch_array($res,$i,PGSQL_NUM);
+			if (!in_array($row,$arr_user)) {
+				$arr_user[] = array($row[0],$row[1]);
+			}
+		}
+	}
+	pg_free_result($res);
+	$sql = "SELECT id,name_ryaku FROM users";
+	$sql.= " WHERE secretary_id='".$login_id."'";
+	$sql.= " ORDER BY seqno";
+	$res = pg_query($conn,$sql);
+	$cnt = pg_num_rows($res);
+	if ($cnt>0) {
+		for ($i=0;$i<$cnt;$i++) {
+			$row = pg_fetch_array($res,$i,PGSQL_NUM);
+			if (!in_array($row,$arr_user)) {
+				$arr_user[] = array($row[0],$row[1]);
+			}
+		}
+	}
+	pg_free_result($res);
+	$sql = "SELECT id,name_ryaku FROM users";
+	$sql.= " WHERE righthandman_ids ~* '(^|,)$login_id(,|$)'";
+	$sql.= " ORDER BY seqno";
+	$res = pg_query($conn,$sql);
+	$cnt = pg_num_rows($res);
+	if ($cnt>0) {
+		for ($i=0;$i<$cnt;$i++) {
+			$row = pg_fetch_array($res,$i,PGSQL_NUM);
+			if (!in_array($row,$arr_user)) {
+				$arr_user[] = array($row[0],$row[1]);
+			}
+		}
+	}
+	pg_free_result($res);
+
+	if ((empty($grp) || trim($grp)=="" || $grp=="all") && $cnt_user<=10) {
+		reset($arr_group);
+		while (list($key,$val)=each($arr_group)) {
+			$sql = "SELECT id,name_ryaku FROM users";
+			$sql.= " RIGHT JOIN (SELECT * FROM users_entry WHERE group_id='".$key."') as entry ON users.id=entry.user_id";
+			$sql.= " ORDER BY seqno";
+			$res = pg_query($conn,$sql);
+			$cnt = pg_num_rows($res);
+			if ($cnt>0) {
+				for ($i=0;$i<$cnt;$i++) {
+					$row = pg_fetch_array($res,$i,PGSQL_NUM);
+					if (!in_array($row,$arr_user)) {
+						$arr_user[] = array($row[0],$row[1]);
+					}
+				}
+			}
+			pg_free_result($res);
+		}
+	} else {
+		$sql = "SELECT id,name_ryaku FROM users";
+		$sql.= " RIGHT JOIN (SELECT * FROM users_entry WHERE group_id='".$grp."') as entry ON users.id=entry.user_id";
+		$sql.= " ORDER BY seqno";
+		$res = pg_query($conn,$sql);
+		$cnt = pg_num_rows($res);
+		if ($cnt>0) {
+			for ($i=0;$i<$cnt;$i++) {
+				$row = pg_fetch_array($res,$i,PGSQL_NUM);
+				if (!in_array($row,$arr_user)) {
+					$arr_user[] = array($row[0],$row[1]);
+				}
+			}
+		}
+		pg_free_result($res);
+	}
+
+	if (sizeof($MES)>0) {
+		## エラー出力
+		$txt.= "<font color=#ff0000>";
+		while (list($key,$val)=each($MES)) {
+			$txt.= $val."<br>";
+		}
+		$txt.= "</font>";
+	} else {
+		## メニュータイトル
+		if ($agenttype=="imode") {
+			$txt.= "&emojiflag;";
+		} elseif ($agenttype=="jsky") {
+			$txt.= echo_emoji("G=");
+		}
+		$txt.= "表示者変更";
+		$txt.= "<hr size=\"0\">";
+		$txt.= "<form action=\"./change.phtml\" method=\"post\">";
+		$txt.= "<input type=\"hidden\" name=\"ms\" value=\"$ms\">";
+		$txt.= "<input type=\"hidden\" name=\"uid\" value=\"$uid\">";
+		$txt.= "<input type=\"hidden\" name=\"y\" value=\"$y\">";
+		$txt.= "<input type=\"hidden\" name=\"m\" value=\"$m\">";
+		$txt.= "<input type=\"hidden\" name=\"d\" value=\"$d\">";
+		$txt.= "<input type=\"hidden\" name=\"n\" value=\"$n\">";
+		$txt.= "<input type=\"hidden\" name=\"oldgrp\" value=\"$grp\">";
+
+		## グループ選択メニュー
+		$txt.= "<SELECT NAME=\"grp\">";
+		if ($cnt_user<=10) {
+			$txt.= "<OPTION VALUE=\"all\"";
+			if (empty($grp) || $grp=="all") $txt.= " SELECTED";
+			$txt.= ">全員";
+		}
+		reset($arr_group);
+		while (list($key,$val)=each($arr_group)) {
+			$txt.= "<OPTION VALUE=\"".$key."\"";
+			if ($key==$grp) $txt.= " SELECTED";
+			$txt.= ">".$val;
+		}
+		$txt.= "</SELECT>";
+		$txt.= "<CENTER><INPUT TYPE=\"submit\" NAME=\"grpchg\" VALUE=\"グループ変更\"></CENTER>";
+
+		if (sizeof($arr_user)>0) {
+			## ページ切替処理
+			$nextpage = false;
+			$allpages = floor(sizeof($arr_user) / $maxrow) + 1;
+			if ($n < 0) $n = 1;
+			if ($n > $allpages) $n = 1;
+			$s_row = ($n - 1) * $maxrow;
+			$e_row = $n * $maxrow - 1;
+			if ($e_row > sizeof($arr_user) - 1) $e_row = sizeof($arr_user) - 1;
+			if (sizeof($arr_user) - 1 > $e_row) $nextpage = true;
+
+			for($i=$s_row; $i<=$e_row; $i++) {
+				$txt.= "<A HREF=\"./".$serial."&uid=".$arr_user[$i][0]."&y=$y&m=$m&d=$d\">";
+				$txt.= mb_convert_kana($arr_user[$i][1],"ak","EUC-JP");
+				$txt.= "</A>";
+				if ($arr_user[$i][0]==$uid) { $txt.= "&emojiflag;"; }
+				$txt.= "<BR>";
+			}
+
+			## ページ切替表示
+			$txt.= "<center>";
+			if ($n > 1)    { $txt.= "<input type=\"submit\" name=\"prev\" VALUE=\"前の".$maxrow."件\">"; }
+			if ($nextpage) { $txt.= "<input type=\"submit\" name=\"next\" VALUE=\"次の".$maxrow."件\">"; }
+			$txt.= "</center>";
+		}
+		$txt.= "</form>";
+	}
+}
+
+include "../footer.inc.php";
+?>

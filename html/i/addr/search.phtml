@@ -1,0 +1,31 @@
+<?php
+	include ("../../config.inc.php"); include ("../../lib.inc.php");
+	include ("../agent.inc.php"); include ("../emoji.inc.php");
+	$pagetitle = "住所録 キーワード検索";
+	include ("../header.inc.php");
+
+	if ($login) {
+		## 変数設定
+		if (!isset($type) || empty($type)) { $type = "C"; }
+
+		$txt.= "キーワード検索";
+		$txt.= "<hr size=\"0\">";
+
+		$txt.= "<form action=\"./list.phtml\" method=\"post\">";
+		$txt.= "<input type=\"hidden\" name=\"ms\" value=\"$ms\">";
+		$txt.= "<input type=\"hidden\" name=\"mode\" value=\"search\">";
+		$txt.= "<input type=\"hidden\" name=\"t\" value=\"K\">";
+
+		$txt.= "検索したいキーワード<BR>";
+		$txt.= "<input type=\"text\" name=\"kwd\"><br>";
+		$txt.= "<input type=\"submit\" value=\"検索\">";
+		$txt.= "</form>";
+		$txt.= "<br>";
+
+		$txt.= "<hr size=\"0\">";
+		$txt.= "<div align=\"right\">";
+		$txt.= "&emoji0;<a href=\"./regist/?ms=".$ms."\" ".$accesskey."=0>新規住所</a>";
+		$txt.= "</div>";
+	}
+	include ("../footer.inc.php");
+?>

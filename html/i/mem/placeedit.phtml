@@ -1,0 +1,61 @@
+<?php
+	include ("../../config.inc.php"); include ("../../lib.inc.php");
+	include ("../agent.inc.php"); include ("../emoji.inc.php");
+	$pagetitle = "行き先変更";
+	include ("../header.inc.php");
+
+	if ($login) {
+		## 変数設定
+		$MES    = array();
+		$ms     = "";
+		$maxrow = 10;
+
+		## 変数処理
+		if (isset($_GET["ms"]))  $ms = textsafe(sjis2euc($_GET["ms"]));
+
+		$sql = "SELECT * FROM users_location WHERE user_id='".$login_id."' ORDER BY updatestamp DESC";
+		$res = pg_query($conn,$sql);
+		$cnt = pg_num_rows($res);
+		if ($cnt==0) {
+			$code = "1";
+			$text = "在席";
+		} else {
+			$row = pg_fetch_array($res,0);
+			$code = $row["code"];
+			$text = $row["text"];
+		}
+		$codetext = get_first("locations","name","id='$code'","");
+		if ($codetext==$text) {
+			$text = "";
+		}
+
+		if (sizeof($MES)==0) {
+			$txt.="<form action=\"./placeupdate.phtml\" method=\"post\">";
+			$txt.="<input type=\"hidden\" name=\"ms\" value=\"".$ms."\">";
+
+			## 行き先選択
+			$sql_loc = "SELECT * FROM locations ORDER BY seqno";
+			$res_loc = pg_query($conn,$sql_loc);
+			$cnt_loc = pg_num_rows($res_loc);
+			if ($cnt_loc>0) {
+				for ($i=0;$i<$cnt_loc;$i++) {
+					$row_loc = pg_fetch_array($res_loc,$i);
+					$txt.="<INPUT TYPE=RADIO NAME=\"code\" VALUE=\"".$row_loc["id"]."\"";
+					if ($row_loc["id"]==$code) { $txt.=" CHECKED"; }
+					$txt.=">".mb_convert_kana($row_loc["name"],"ak","EUC-JP");
+					$txt.="<BR>";
+				}
+			}
+			$txt.="<INPUT TYPE=RADIO NAME=\"code\" VALUE=\"-1\"";
+			if ($text!="") $txt.=" CHECKED";
+			$txt.=">";
+			$txt.="その他(手入力)<BR>";
+			$txt.="<input type=\"text\" name=\"text\" VALUE=\"".$text."\">\n";
+
+			$txt.="<center><input type=\"submit\" value=\"登録\"></center>";
+			$txt.="</form>";
+		}
+	}
+
+	include "../footer.inc.php";
+?>

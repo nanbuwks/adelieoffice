@@ -1,0 +1,203 @@
+<?php
+	include ("../../config.inc.php"); include ("../../lib.inc.php");
+	include ("../agent.inc.php"); include ("../emoji.inc.php");
+	$pagetitle = "メンバー詳細";
+	include ("../header.inc.php");
+
+	if ($login) {
+		## 変数設定
+		$txt    = "";
+		$MES    = array();
+		$ms = "";
+		$id = "";
+		$grp = "";
+		$n = "";
+
+		## 変数処理
+		if (isset($_GET["ms"]))  $ms = textsafe(sjis2euc($_GET["ms"]));
+		if (isset($_GET["id"]))  $id = textsafe(sjis2euc($_GET["id"]));
+		if (isset($_GET["grp"])) $grp = textsafe(sjis2euc($_GET["grp"]));
+		if (isset($_GET["n"]))   $n = textsafe(sjis2euc($_GET["n"]));
+
+		## 変数チェック
+		if (!empty($id)) {
+			$sql_user = "SELECT * FROM users WHERE id='".db_textsafe($id)."'";
+			$res_user = pg_query($conn, $sql_user);
+			if (pg_num_rows($res_user)>0) {
+				$row_user = pg_fetch_array($res_user,0);
+			} else {
+				$MES[] = "指定されたユーザーは登録されていません";
+			}
+		} else {
+			$MES[] = "ユーザーを選択してください";
+		}
+
+		if (sizeof($MES)>0) {
+			## エラー出力
+			$txt.= "<font color=\"#ff0000\">";
+			while (list($key,$val)=each($MES)) {
+				$txt.= $val."<br>";
+			}
+			$txt.= "</font>";
+		} else {
+			## 正常時
+			$txt.= "●メンバー情報<br>";
+			$txt.= "<hr size=\"0\">";
+
+			## フリガナ
+			$txt.= "カナヨミ:";
+			if (empty($row_user["name_kana"])) {
+			} else {
+				$name_kana = $row_user["name_kana"];
+				$name_kana = str_replace("　","",$name_kana);
+				$name_kana = str_replace(" ","",$name_kana);
+				$name_kana = mb_convert_kana($name_kana,"ak","EUC-JP");
+				$txt.= $name_kana;
+			}
+			$txt.= "<BR>";
+
+			## 氏名
+			$txt.= "名前:";
+			if (empty($row_user["name"])) {
+				$txt.= "未設定";
+			} else {
+				$name = $row_user["name"];
+				$name = str_replace("　","",$name);
+				$name = str_replace(" ","",$name);
+				$name = mb_convert_kana($name,"ak","EUC-JP");
+				$txt.= $name;
+			}
+			if (!empty($row_user["email_sub"])) {
+				$txt.= "<A HREF=\"mailto:".$row_user["email_sub"]."\">&emojimobilephone;</A>";
+			}
+			if (!empty($row_user["email"])) {
+				$txt.= "<A HREF=\"mailto:".$row_user["email"]."\">&emojipc;</A>";
+			}
+			$txt.= "<BR>";
+			if (($row_user["id"]!=$login_id) &&
+					(!empty($row_user["email"]) || !empty($row_user["email_sub"]))) {
+				$txt.= "<DIV ALIGN=RIGHT>";
+				$txt.= "⇒";
+				$txt.= "<A HREF=\"../mail/add/$serial&sn=$sn&to=".$row_user["id"]."\">";
+				$txt.= "伝言メモ";
+				$txt.= "</A>";
+				$txt.= "</DIV>";
+			}
+
+			## 行き先
+			$sql_location = "SELECT * FROM users_location WHERE user_id='".$row_user["id"]."' ORDER BY updatestamp DESC";
+			$res_location = pg_query($conn,$sql_location);
+			$cnt_location = pg_num_rows($res_location);
+			if ($cnt_location==0) {
+				$code = "";
+				$text = "未設定";
+				$updatestamp = false;
+			} else {
+				$row_location = pg_fetch_array($res_location,0);
+				$code = $row_location["code"];
+				$text = $row_location["text"];
+				$updatestamp = datetime2timestamp($row_location["updatestamp"]);
+			}
+
+			$txt.= "所在:";
+			if ($row_user["id"]==$login_id) {
+				$txt.= "<A HREF=\"./placeedit.phtml$serial&sn=$sn\">";
+				$txt.= $text;
+				$txt.= "</A>";
+			} else {
+				$txt.= $text;
+			}
+			if ($updatestamp!=false) {
+				$txt.= "<FONT STYLE=\"font-size:80%\"> ";
+				if (date("Ymd")!=date("Ymd",$updatestamp)) {
+					if (date("Y")!=date("Y",$updatestamp)) {
+						$txt.= date("Y",$updatestamp)."/";
+					}
+					$txt.= date("n/j",$updatestamp);
+					$txt.= " ";
+				}
+				$txt.= date("H:i",$updatestamp);
+				$txt.= "</FONT>";
+			}
+			$txt.= "<BR>";
+
+			## 性別
+			$txt.= "性別:";
+			if (empty($row_user["sex"])) {
+			} else {
+				if ($row_user["sex"]=="man") { $txt.= "男"; }
+				if ($row_user["sex"]=="woman") { $txt.= "女"; }
+			}
+			$txt.= "<BR>";
+
+			## 誕生日
+			if (!empty($row_user["birthday"])) {
+				$txt.= "誕生日:";
+				$birthday = getdate(date2timestamp($row_user["birthday"]));
+				$today    = getdate();
+				$txt.= $birthday["year"]."年".$birthday["mon"]."月".$birthday["mday"]."日";
+				$txt.= "<BR>";
+			}
+
+			## 所属部署
+			if (!empty($row_user["depa"])) {
+				$txt.= "部署:";
+				$depa = $row_user["depa"];
+				$depa = str_replace("　","",$depa);
+				$depa = str_replace(" ","",$depa);
+				$depa = mb_convert_kana($depa,"ak","EUC-JP");
+				$txt.= $depa;
+				$txt.= "<BR>";
+			}
+
+			## 役職
+			if (!empty($row_user["post"])) {
+				$txt.= "役職:";
+				$post = $row_user["post"];
+				$post = str_replace("　","",$post);
+				$post = str_replace(" ","",$post);
+				$post = mb_convert_kana($post,"ak","EUC-JP");
+				$txt.= $post;
+				$txt.= "<BR>";
+			}
+
+			## 携帯電話番号
+			if (!empty($row_user["handy"])) {
+				$txt.= "&emojimobilephone;℡";
+				$txt.= ":";
+				$txt.= "<A HREF=\"tel:".$row_user["handy"]."\">".$row_user["handy"]."</A>";
+				$txt.= "<BR>";
+			}
+
+			## 携帯アドレス
+			$txt.= "&emojimobilephone;&emojimail;:";
+			if (empty($row_user["email_sub"])) {
+			} else {
+				$txt.= "<A HREF=\"mailto:".$row_user["email_sub"]."\">".$row_user["email_sub"]."</A>";
+			}
+			$txt.= "<BR>";
+
+			## ダイアルイン
+			if (!empty($row_user["dialin"])) {
+				$txt.= "&emojipc;℡";
+				$txt.= ":";
+				if (strlen($row_user["dialin"])>7) {
+					$txt.= "<A HREF=\"tel:".$row_user["dialin"]."\">".$row_user["dialin"]."</A>";
+				} else {
+					$txt.= $row_user["dialin"];
+				}
+				$txt.= "<BR>";
+			}
+
+			## メールアドレス
+			if (!empty($row_user["email"])) {
+				$txt.= "&emojipc;&emojimail;:";
+				$txt.= "<A HREF=\"mailto:".$row_user["email"]."\">".$row_user["email"]."</A>";
+				$txt.= "<BR>";
+			}
+		}
+	}
+
+	$txt.= "<br>";
+	include "../footer.inc.php";
+?>

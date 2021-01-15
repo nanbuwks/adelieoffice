@@ -1,0 +1,283 @@
+<?php
+  include "../../config.inc.php";
+  include "../../lib.inc.php";
+	$linktext  = "<A HREF=\"../../\" CLASS=\"BAR\">トップページ</A> &gt; ";
+	$linktext .= "<A HREF=\"../\" CLASS=\"BAR\">管理者メニュー</A> &gt; ";
+	$linktext .= "<A HREF=\"./\" CLASS=\"BAR\">勤務ログ</A> &gt; ";
+	$linktext .= "<FONT COLOR=#FFFF00>詳細</FONT> ";
+
+// modify by nanbuwks 20111221
+	include ("../../header.inc.php");
+// include ("../menu.inc.php");
+?>
+<style type="text/css">
+hr {
+page-break-after: always;
+}
+</style>
+<?php
+  // add sandbox by nanbuwks 20111102
+  $sandBox = new ext2OldVariable();
+  $hoge = array("y", "m","group_id");
+  $sandBox->getNameArray2Oldvariable($hoge);
+
+  if ($login && $admin_sign == 't') {
+    // データ準備
+    if (is_numeric($y) && is_numeric($m) && checkdate($m,1,$y)) {
+      // modify by nanbuwks 20111122
+      //$firststamp = mktime(0, 0, 0, $m, 1, $y);
+      if ( !is_numeric($d)) {
+        $d = 1;
+      }
+    } else {
+      // modify by nanbuwks 20111122
+      //$m = date("m",time()+86400*6);
+      //$y = date("Y",time()+86400*6);
+      //$firststamp = mktime(0, 0, 0, $m, 1, $y);
+      $d = date("d",time());
+      $m = date("m",time());
+      $y = date("Y",time());
+    }
+    // add by nanbuwks 20111122
+    $limitDay=21;
+    if ( $limitDay <=  $d )
+       {
+           $startY = date("Y",mktime(0,0,0,$m,$limitDay,$y));
+           $startM = date("m",mktime(0,0,0,$m,$limitDay,$y));
+           $nenDo  = date("Y",mktime(0,0,0,$m+1,$limitDay,$y));
+           $gatuDo = date("m",mktime(0,0,0,$m+1,$limitDay,$y));
+        } else {
+           $startY = date("Y",mktime(0,0,0,$m-1,$limitDay,$y));
+           $startM = date("m",mktime(0,0,0,$m-1,$limitDay,$y));
+           $nenDo  = date("Y",mktime(0,0,0,$m,$limitDay,$y));
+           $gatuDo = date("m",mktime(0,0,0,$m,$limitDay,$y));
+        }
+    $firststamp = mktime(0, 0, 0, $startM, $limitDay, $startY);
+
+    // modify by nanbuwks 20111122
+
+    $next_y = $y; $next_m = $gatuDo + 1;
+    if ($next_m>12) {
+      $next_y = $y + 1; $next_m = 1;
+    }
+    $prev_y = $y; $prev_m = $gatuDo - 1;
+    if ($prev_m<1) {
+      $prev_y = $y- 1; $prev_m = 12;
+    }
+
+    // modify by nanbuwks 20111124
+    //$laststamp = mktime(0, 0, 0, $next_m, 1, $next_y)-86400;
+    $laststamp = mktime(0, 0, 0, $startM+1, $limitDay-1, $startY);
+
+    // $prevmonthstamp = $firststamp-86400;
+    // $prevmonthstamp = $firststamp-0*31;
+    // $nextmonthstamp = $laststamp+86400+86400*31;
+    $prevmonthstamp = mktime(0, 0, 0, $gatuDo - 1, $limitDay, $nenDo);
+    $nextmonthstamp = mktime(0, 0, 0, $gatuDo + 1, $limitDay, $nenDo);
+
+      $sql_longloop = "select * from users_entry where group_id = '".$group_id."';";
+      $res_longloop = pg_query($conn,$sql_longloop);
+      $memberCount = pg_num_rows($res_longloop);
+    $pagetext .=$group_id.": ".$memberCount . " members<br>";
+    $pagetext .="print:".  date("Y",time())."/".date("m",time())."/".date("d",time())." ".date("H",time()).":".date("i",time()).":".date("s",time())."<br>";
+      for ($longLoopCounter=0;$longLoopCounter< $memberCount; $longLoopCounter++) {
+// long loop start
+    $pagetext .= "<hr>\n";
+        $row_longLoop = pg_fetch_array($res_longloop,$longLoopCounter);
+        $id = $row_longLoop["user_id"];
+
+    // 年月表示
+    $pagetext .= "<TABLE BORDER=0 CELLSPACING=0 CELLPADDING=2 WIDTH=100%>";
+    $pagetext .= "<TR><TD ALIGN=CENTER>";
+
+    $pagetext .= "<A HREF=\"./browse.phtml?id=$id&group_id=".$group_id."&y=".date("Y",$prevmonthstamp)."&m=".date("n",$prevmonthstamp)."\">&lt;&lt;</A>";
+
+    $pagetext .= "&nbsp;";
+
+    // modify by nanbuwks 20111122
+    // print $y."年".$m."月";
+    $pagetext .=  $nenDo."年".$gatuDo."月";
+    $pagetext .= "&nbsp;";
+
+    $pagetext .= "<A HREF=\"./browse.phtml?id=$id&group_id=".$group_id."y=".date("Y",$nextmonthstamp)."&m=".date("n",$nextmonthstamp)."\">&gt;&gt;</A>";
+
+    $pagetext .= "<BR>";
+
+    $pagetext .= "<TABLE BORDER=$borderwidth CELLSPACING=1 CELLPADDING=2 WIDTH=420><TR><TD>";
+
+    $pagetext .= "<table width=100%><tr>";
+    $pagetext .= "<td><a href=\"./\">".get_first("users","name_ryaku","id='$id'","不明または未設定")."</a></td>";
+    $pagetext .= "<td ALIGN=RIGHT><A HREF=\"./csvout.phtml?id=$id&y=".$y."&m=".$m."\"><IMG SRC=\"../../image/filesadd.gif\" BORDER=0 ALIGN=ABSMIDDLE ALT=\"CSVファイルのダウンロード\">CSVダウンロード</A></td>";
+    $pagetext .= "</tr></table>";
+    $borderwidth=1;
+    $pagetext .= "<TABLE BORDER=$borderwidth CELLSPACING=1 CELLPADDING=2 BGCOLOR=#999999 WIDTH=100%>";
+
+    $pagetext .= "<TR BGCOLOR=#CCCCCC>";
+    $pagetext .= "<TD ALIGN=CENTER NOWRAP>日付</TD>";
+    $pagetext .= "<TD ALIGN=CENTER NOWRAP>出社</TD>";
+    $pagetext .= "<TD ALIGN=CENTER NOWRAP>退社</TD>";
+    $pagetext .= "<TD ALIGN=CENTER NOWRAP>外出</TD>";
+    $pagetext .= "<TD ALIGN=CENTER NOWRAP>戻り</TD>";
+    $pagetext .= "<TD ALIGN=CENTER NOWRAP WIDTH=60%>コメント</TD>";
+    $pagetext .= "<TD ALIGN=CENTER NOWRAP WIDTH=60%> スケジュール </TD>";
+    $pagetext .= "<TD ALIGN=CENTER NOWRAP>作成日時</TD>";
+    $pagetext .= "<TD ALIGN=CENTER NOWRAP>更新日時</TD>";
+    $pagetext .= "</TR>";
+
+    // カレンダー(縦)表示
+    for($viewstamp=$firststamp;$viewstamp<=$laststamp;$viewstamp=$viewstamp+86400) {
+      // フォント色調整
+      if ($viewstamp<$firststamp || $viewstamp>$laststamp) {
+        // 当月以外
+        $forecolor = "#999999";
+        $backcolor = $wcolor_back[date("w",$viewstamp)];
+        if (get_count("holiday","holiday='".date("Y-m-d",$viewstamp)."'")>0) {
+          $backcolor = $wcolor_back[7];
+        }
+      } else {
+        $forecolor = $wcolor[date("w",$viewstamp)];
+        $backcolor = $wcolor_back[date("w",$viewstamp)];
+        if (get_count("holiday","holiday='".date("Y-m-d",$viewstamp)."'")>0) {
+          $forecolor = $wcolor[7];
+          $backcolor = $wcolor_back[7];
+        }
+      }
+      $pagetext .= "<TR BGCOLOR=".$backcolor.">";
+      $pagetext .= "<TD ALIGN=CENTER NOWRAP>";
+
+      $pagetext .= "<FONT COLOR=".$forecolor.">";
+      $pagetext .= date("j",$viewstamp);
+
+      $pagetext .= "(";
+      $pagetext .= $wname[date("w",$viewstamp)];
+      $pagetext .= ")";
+
+      $pagetext .= "</FONT>";
+      $pagetext .= "</TD>";
+
+      $sql_duty = "SELECT * FROM users_duty WHERE user_id='".$id."' AND workdate='".date("Y-m-d",$viewstamp)."'";
+      $res_duty = pg_query($conn,$sql_duty);
+      $cnt_duty = pg_num_rows($res_duty);
+
+      $startstamp  = false;
+      $endstamp    = false;
+      $goesstamp   = false;
+      $backstamp   = false;
+      $createstamp = false;
+      $updatestamp = false;
+      $note = "";
+      if ($cnt_duty>0) {
+        $row_duty = pg_fetch_array($res_duty,0);
+        if ($row_duty["startstamp"]!="")  $startstamp  = datetime2timestamp($row_duty["startstamp"]);
+        if ($row_duty["endstamp"]!="")    $endstamp    = datetime2timestamp($row_duty["endstamp"]);
+        if ($row_duty["goesstamp"]!="")   $goesstamp   = datetime2timestamp($row_duty["goesstamp"]);
+        if ($row_duty["backstamp"]!="")   $backstamp   = datetime2timestamp($row_duty["backstamp"]);
+        if ($row_duty["createstamp"]!="") $createstamp = datetime2timestamp($row_duty["createstamp"]);
+        if ($row_duty["updatestamp"]!="") $updatestamp = datetime2timestamp($row_duty["updatestamp"]);
+        $note = $row_duty["note"];
+      }
+
+      $pagetext .= "<TD ALIGN=CENTER NOWRAP>";
+      if ($startstamp == false) {
+        $pagetext .= "&nbsp;";
+      } else {
+        $pagetext .= "<FONT COLOR=".$forecolor.">";
+        $pagetext .= date("H:i",$startstamp);
+				if ($startstamp!=$createstamp) { $pagetext .= "<sup style=\"color:#666666\">?</sup>"; }
+      }
+      $pagetext .= "</TD>";
+      $pagetext .= "<TD ALIGN=CENTER NOWRAP>";
+      if ($endstamp == false) {
+        $pagetext .= "&nbsp;";
+      } else {
+        $pagetext .= "<FONT COLOR=".$forecolor.">";
+        $pagetext .= date("H:i",$endstamp);
+				if ($endstamp!=$updatestamp) { $pagetext .= "<sup style=\"color:#666666\">?</sup>"; }
+      }
+      $pagetext .= "</TD>";
+      $pagetext .= "<TD ALIGN=CENTER NOWRAP>";
+      if ($goesstamp == false) {
+        $pagetext .= "&nbsp;";
+      } else {
+        $pagetext .= "<FONT COLOR=".$forecolor.">";
+        $pagetext .= date("H:i",$goesstamp);
+      }
+      $pagetext .= "</TD>";
+      $pagetext .= "<TD ALIGN=CENTER NOWRAP>";
+      if ($backstamp == false) {
+        $pagetext .= "&nbsp;";
+      } else {
+        $pagetext .= "<FONT COLOR=".$forecolor.">";
+        $pagetext .= date("H:i",$backstamp);
+      }
+      $pagetext .= "</TD>";
+
+      $pagetext .= "<TD>";
+      $pagetext .= "<FONT COLOR=".$forecolor.">";
+      // modify by nanbuwks 20111221
+      // $pagetext .= $note;
+      $pagetext .= mb_substr($note,0,6,"UTF-8");
+      $pagetext .= "&nbsp;";
+      $pagetext .= "</TD>";
+
+// add by nanbuwks 20111128, 20111219 ,20120119,20120307
+      $pagetext .= "<TD>";
+      $pagetext .= "<FONT COLOR=".$forecolor.">";
+
+
+//      $sql_schedule = "SELECT datefrom,dateto,timefrom,timeto,user_id,create_user_id,opensign,viewsign,user_id,sharelist,schedules.seqno AS seqno,note,value FROM schedules ,schedule_kind WHERE to_number(schedules.kind,'99999') = schedule_kind.key and ";
+//      $sql_schedule .= "user_id='".$id."' AND datefrom='".date("Y-m-d",$viewstamp)."'";
+
+      $sql_schedule = "SELECT datefrom,dateto,timefrom,timeto,user_id,create_user_id,opensign,viewsign,user_id,sharelist,schedules.seqno AS seqno,note,value FROM schedule_kind right join schedules on schedules.kind LIKE to_char(schedule_kind.key ,'FM9') where ";
+      $sql_schedule .= " user_id='".$id."' AND datefrom<='".date("Y-m-d",$viewstamp)."'";
+      $sql_schedule .= " AND dateto>='".date("Y-m-d",$viewstamp)."'";
+
+      $res_schedule = pg_query($conn,$sql_schedule);
+      $cnt_schedule = pg_num_rows($res_schedule);
+      for ($i=0;$i< $cnt_schedule; $i++) {
+        $row_schedule = pg_fetch_array($res_schedule,$i);
+        $value = $row_schedule["value"];
+        $note = $row_schedule["note"];
+        $note = mb_substr($note,0,6,"UTF-8");
+        $pagetext .= "[".$value."]".$note;
+        $pagetext .= "&nbsp;";
+        $pagetext .= "<br>";
+      }
+
+      $pagetext .= "</TD>";
+
+
+
+      $pagetext .= "<TD ALIGN=CENTER NOWRAP>";
+      if ($createstamp == false) {
+        $pagetext .= "&nbsp;";
+      } else {
+        $pagetext .= "<FONT COLOR=".$forecolor.">";
+        $pagetext .= date("m/d H:i",$createstamp);
+      }
+      $pagetext .= "</TD>";
+
+      $pagetext .= "<TD ALIGN=CENTER NOWRAP>";
+      if ($updatestamp == false) {
+        $pagetext .= "&nbsp;";
+      } else {
+        $pagetext .= "<FONT COLOR=".$forecolor.">";
+        $pagetext .= date("m/d H:i",$updatestamp);
+      }
+      $pagetext .= "</TD>";
+
+
+      $pagetext .= "</TR>";
+    }
+    $pagetext .= "</TABLE>\n";
+    $pagetext .= "</TD></TR></TABLE>\n";
+    $pagetext .= "</TD></TR></TABLE>\n";
+  }
+
+// long loop end
+}
+
+// modify by nanbuwks 20111221
+  include "../../detail.inc.php";
+  include "../../footer.inc.php";
+?>

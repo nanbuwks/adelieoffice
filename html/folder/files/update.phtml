@@ -1,0 +1,198 @@
+<?php
+include "../../config.inc.php"; include "../../lib.inc.php";
+
+$linktext  = "<A HREF=\"../../\" CLASS=\"BAR\">トップページ</A> &gt; ";
+$linktext .= "<A HREF=\"../\" CLASS=\"BAR\">Webフォルダ</A> &gt; ";
+$linktext .= "<FONT COLOR=#FFFF00>ファイル名の変更</FONT> ";
+
+include "../../login_check.inc.php";
+
+if ($login && sizeof($MES)==0) {
+	// パラメーターセット
+	$mode = $_REQUEST["mode"];
+	
+	if (!empty($_REQUEST["path"])) {
+		$path = urldecode($_REQUEST["path"]);
+	}
+	if (!empty($_REQUEST["name"])) {
+		$name = stripslashes(urldecode($_REQUEST["name"]));
+	}
+	if (!empty($_REQUEST["oldname"])) {
+		$oldname = stripslashes(urldecode($_REQUEST["oldname"]));
+	}
+	if (!empty($_REQUEST["ext"])) {
+		$ext = stripslashes(urldecode($_REQUEST["ext"]));
+	}
+	$comment = stripslashes($_REQUEST["comment"]);
+	
+	// 前処理
+	$name    = textsafe($name);
+	$comment = textsafe($comment);
+	
+	// コード変換
+	$patharr = preg_split('/',$path);
+	
+	$oldname = trim($oldname);
+	
+	// エラーチェック
+	if (sizeof($DMES)==0) {
+		if ($path=="") {
+			$DMES[] = "フォルダが指定されていません";
+		} elseif (!file_exists($folderpath.$path)) {
+			$DMES[] = "フォルダが既に削除されています";
+		} else {
+			if ($oldname=="") {
+				$DMES[] = "変更前のファイル名が指定されていません";
+			}
+		}
+		if (sizeof($DMES)==0) {
+			if ($name=="") {
+				$DMES[] = "新しいファイル名が入力されていません";
+			} elseif(strlen($name)>40) { // 最大40文字
+			$DMES[] = "ファイル名が長すぎます";
+			} elseif (substr($name,0,1)==".") {
+				$DMES[] = ".[ドット]ではじまるファイル名は利用できません<BR>または漢字コードの変換に失敗しました。<BR>アップロードしたいファイル名を拡張子を含めずに入力してください。";
+			} elseif (preg_match("\/",$name) or preg_match("\.",$name)) {
+				$DMES[] = "ファイル名に使用できない文字が含まれています";
+			} elseif (strpos($name," ")>0 || strpos($name,"　")>0) {
+				$DMES[] = "フォルダ名に空白スペースを含むことはできません(名称変更時)";
+			} else {
+				if (!file_exists($folderpath.$path."/".$oldname)) {
+					#if (!file_exists($folderpath.$path.$oldname)) {
+					$DMES[] = "変更前のファイルが見つからないか既に削除されています。";
+				} elseif ($name != sjis2euc(euc2sjis($name))) {
+					$DMES[] = "ファイル名に利用できない文字が使用されています";
+				} else {
+					if ($ext != "") {
+						if (file_exists($folderpath.$path."/".$name.".".$ext)) {
+							#$DMES[] = "同名のファイルが既に存在しています。";
+						}
+					} else {
+						if (file_exists($folderpath.$path."/".$name)) {
+							#$DMES[] = "同名のファイルが既に存在しています。";
+						}
+					}
+				}
+			}
+		}
+		if (strlen($comment)>400) {
+			$DMES[] = "コメントが長すぎます(全角200文字まで)";
+		}
+	}
+	
+	// DBへ書き込み
+	if (sizeof($DMES)==0) {
+		// 既存レコードチェック(旧ファイル名で)
+		$sql = "SELECT * FROM files WHERE path='".db_textsafe($path)."' AND filename='".db_textsafe($oldname)."'";
+		$res = pg_query($conn, $sql);
+		$cnt = pg_num_rows($res);
+		if ($cnt == 0) {
+			// 既存レコードチェック(新ファイル名で)
+			if ($ext != "") {
+				$sql = "SELECT * FROM files WHERE path='".db_textsafe($path)."' AND filename='".db_textsafe($name).".".$ext."'";
+			} else {
+				$sql = "SELECT * FROM files WHERE path='".db_textsafe($path)."' AND filename='".db_textsafe($name)."'";
+			}
+			$res = pg_query($conn, $sql);
+			$cnt = pg_num_rows($res);
+		}
+		
+		// 書き込み用の文字列調整
+		$name_db = db_textsafe($name);
+		$comment_db = db_textsafe($comment);
+		
+		if ($cnt == 0) { // 新規
+		$sql = "SELECT * FROM files ORDER BY seqno desc;";
+		$res = pg_query($conn, $sql);
+		$cnt = pg_num_rows($res);
+		
+		if ($cnt==0) {
+			$seqno = 1;
+		} else {
+			$row = pg_fetch_array($res, 0);
+			$seqno = $row["seqno"] + 1;
+		}
+		
+		$sql  = "INSERT INTO files (seqno,user_id,path,filename,comment,createstamp,updatestamp)";
+		$sql .= " VALUES (";
+		$sql .= $seqno.",";
+		$sql .= "'".$login_id."',";
+		$sql .= "'".$path."',";
+		if ($ext != "") {
+			$sql .= "'".$name_db.".".$ext."',";
+		} else {
+			$sql .= "'".$name_db."',";
+		}
+		
+		$sql .= "'".$comment_db."',";
+		$sql .= "'now',";
+		$sql .= "'now'";
+		$sql .= ")";
+		$res = pg_query($conn,$sql);
+		if ($res==false) {
+			$DMES[] = "ファイル情報の登録に失敗しました";
+		}
+		} else {
+			$row = pg_fetch_array($res, 0);
+			$seqno = $row["seqno"];
+			
+			// 後でここに権限チェックをつける
+			$sql  = "UPDATE files SET ";
+			#$sql .= "user_id = '".$login_id."',";
+			$sql .= "path = '".$path."',";
+			if ($ext != "") {
+				$sql .= "filename = '".$name_db.".".$ext."',";
+			} else {
+				$sql .= "filename = '".$name_db."',";
+			}
+			$sql .= "comment='".$comment_db."',";
+			$sql .= "updatestamp = 'now' ";
+			$sql .= "WHERE seqno=".$seqno;
+			$res = pg_query($conn,$sql);
+			if ($res==false) {
+				$DMES[] = "ファイル情報の登録に失敗しました";
+			}
+		}
+	}
+	
+	if (sizeof($DMES)==0) {
+		// ファイルのリネーム
+		$oldfilename = $folderpath.$path."/".$oldname;
+		if ($ext != "") {
+			$newfilename = $folderpath.$path."/".$name.".".$ext;
+		} else {
+			$newfilename = $folderpath.$path."/".$name;
+		}
+		rename ($oldfilename,$newfilename);
+		
+		// リネームの確認
+		if (!file_exists($newfilename)) {
+			$DMES[] = "ファイル名の変更に失敗しました。";
+		}
+	}
+	
+	if (sizeof($DMES)==0) {
+		// 正常終了
+		$returl = "../";
+		if ($p=="top") {
+			$returl = "../../";
+		}
+		Header("Location: ".$returl);
+	} else {
+		// エラー時
+		include "../../header.inc.php";
+		
+		$pagetext .= "<BR><CENTER>\n";
+		$pagetext .= "<FONT COLOR=#FF0000>\n";
+		while (list($key,$val)=each($DMES)) {
+			$pagetext .= $val."<BR>\n";
+		}
+		$pagetext .= "</FONT>\n";
+		$pagetext .= "<FORM><INPUT TYPE=BUTTON VALUE=\"戻る\" ONCLICK=\"history.back()\"></FORM>\n";
+		$pagetext .= "</CENTER>";
+		
+		include "../../detail.inc.php";
+		include "../../footer.inc.php";
+	}
+}
+?>

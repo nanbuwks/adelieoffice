@@ -1,0 +1,97 @@
+<?php
+	include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+	include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+	$pagetitle = "伝言メモの削除";
+	include ("../../header.inc.php");
+
+	if ($login) {
+		// エラーチェック
+		if (empty($s) || !is_numeric($s)) {
+			$MES[] = "正しくない操作です";
+		}
+		if (sizeof($MES)==0) {
+			if ($exec!="t") {
+				// 確認処理
+				if ($type=="send") {
+					$sql = "SELECT * FROM mail WHERE user_id='$login_id' AND \"from\"='$login_id' AND seqno=$s";
+					$res = pg_query($conn,$sql);
+					$cnt = pg_num_rows($res);
+					if ($cnt==0) {
+						$MES[] = "指定された情報は既に削除されています";
+					}
+				} elseif ($type=="recv") {
+					$sql = "SELECT * FROM mail WHERE user_id='$login_id' AND \"to\" ~* '(^|,)$login_id(,|$)' AND seqno=$s";
+					$res = pg_query($conn,$sql);
+					$cnt = pg_num_rows($res);
+					if ($cnt==0) {
+						$MES[] = "指定された情報は既に削除されています";
+					}
+				} else {
+					$MES[] = "正しくない操作です";
+				}
+			} else {
+				// 削除処理
+				if ($type=="send") {
+					$sql = "DELETE FROM mail WHERE user_id='$login_id' AND \"from\"='$login_id' AND seqno=$s";
+					$res = pg_query($conn,$sql);
+					$cnt = pg_affected_rows($res);
+					if ($cnt==0) {
+						$MES[] = "メモの削除に失敗しました";
+					}
+				} elseif ($type=="recv") {
+					$sql = "DELETE FROM mail WHERE user_id='$login_id' AND \"to\" ~* '(^|,)$login_id(,|$)' AND seqno=$s";
+					$res = pg_query($conn,$sql);
+					$cnt = pg_affected_rows($res);
+					if ($cnt==0) {
+						$MES[] = "メモの削除に失敗しました";
+					}
+				} else {
+					$MES[] = "正しくない操作です";
+				}
+			}
+		}
+
+		if (sizeof($MES)>0) {
+			## エラー表示
+			$txt.= "<FONT COLOR=#FF0000>";
+			for ($i=0;$i<sizeof($MES);$i++) {
+				$txt.= $MES[$i]."<br>";
+			}
+			$txt.= "</FONT>";
+		} else {
+			if ($exec!="t") {
+				$txt.= "<FORM ACTION=\"./\" METHOD=\"POST\">";
+				$txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+				$txt.= "<INPUT TYPE=HIDDEN NAME=\"exec\" VALUE=\"t\">";
+				$txt.= "<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"$p\">";
+				$txt.= "<INPUT TYPE=HIDDEN NAME=\"type\" VALUE=\"$type\">";
+				$txt.= "<INPUT TYPE=HIDDEN NAME=\"s\" VALUE=\"$s\">";
+				$txt.= "<CENTER>";
+				$txt.= "<BR>";
+				$txt.= "<FONT COLOR=#FF0066>&emojimail;削除しますか？</FONT>";
+				$txt.= "<BR><BR>";
+				$txt.= "<INPUT TYPE=SUBMIT VALUE=\"実行\">";
+				$txt.= "</CENTER>";
+				$txt.= "</FORM>";
+			} else {
+				if ($type=="send") {
+					$txt.= "<FORM ACTION=\"../list_send.phtml\" METHOD=POST>";
+				} else {
+					$txt.= "<FORM ACTION=\"../\" METHOD=\"GET\">";
+				}
+				$txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+				$txt.= "<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"$p\">";
+				$txt.= "<CENTER>";
+				$txt.= "<BR>";
+				$txt.= "&emojimail;削除完了";
+				$txt.= "<BR><BR>";
+				$txt.= "<INPUT TYPE=SUBMIT VALUE=\"一覧へ\">";
+				$txt.= "</CENTER>";
+				$txt.= "</FORM>";
+			}
+		}
+	}
+
+	include ("../../footer.inc.php");
+?>

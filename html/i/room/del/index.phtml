@@ -1,0 +1,70 @@
+<?php
+  include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+  include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+  include ("../../header.inc.php");
+
+
+  $txt.= "<!--";
+  // エラーチェック
+  if ($login==false) {
+    $MES[] = "先に、ログインしてください ⇒ <A HREF=\"/i/\">ログインページへ</A>";
+  } else {
+    if (trim($login_id) == "") {
+      $MES[] = "ユーザーＩＤが正しくありません";
+    } else {
+      $sql = "select * from users where id='".$login_id."'";
+      $res = pg_query($conn, $sql);
+
+      if (pg_num_rows($res)<1) {
+        $MES[] = "ユーザーＩＤが正しくありません";
+      } else {
+        $row = pg_fetch_array($res,0);
+      }
+    }
+  }
+
+  if (sizeof($MES)==0) {
+    if ($seqno=="") {
+      $MES[] = "該当データ無し";
+    }
+  }
+
+  $txt.= "-->";
+
+  // データ確認
+  if (sizeof($MES)==0) {
+    $sql = "SELECT * FROM rooms_reserve where seqno=".$seqno;
+    $res = pg_query($conn,$sql);
+    if(pg_num_rows($res)==0){
+      $MES[] = "指定された情報は既に削除されています";
+    }
+    pg_free_result($res);
+  }
+
+  if (sizeof($MES)>0) {
+    // エラーメッセージ出力
+    $txt.= "<font color=#FF0000>";
+    while (list($key,$val)=each($MES)) {
+      $txt.= $val."<br>";
+    }
+    $txt.= "</font><hr size=\"0\">\n";
+
+    // フッタ表示
+  } else {
+    $txt.= "<hr size=\"0\">\n";
+    $txt.= "<FORM ACTION=\"./del.phtml\" METHOD=POST>";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"seqno\" VALUE=\"$seqno\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"rid\" VALUE=\"$rid\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"room_id\" VALUE=\"$room_id\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"$p\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"y\" VALUE=\"$y\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"m\" VALUE=\"$m\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"d\" VALUE=\"$d\">";
+    $txt.= "予約を削除します。よろしいですか？<BR>";
+    $txt.= "<FONT COLOR=#FF0000>一度削除した予約を元に戻すことはできませんのでご注意ください。</FONT><BR>";
+    $txt.= "<DIV ALIGN=CENTER><INPUT TYPE=SUBMIT VALUE=\"実行\"></DIV>";
+    $txt.= "</FORM>";
+  }
+  include "../../footer.inc.php";
+?>

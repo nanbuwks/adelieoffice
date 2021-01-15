@@ -1,0 +1,103 @@
+<?php
+  /* ヘッダ読み込み */
+  include "../../config.inc.php";
+  include "../../lib.inc.php";
+
+  // リンク用テキストの設定
+  $linktext  = "<A HREF=\"../../\"CLASS=\"BAR\">トップページ</A> &gt; ";
+  $linktext .= "<A HREF=\"../\" CLASS=\"BAR\">Webフォルダ</A> &gt; ";
+  $linktext .= "<FONT COLOR=#FFFF00>フォルダの名称変更</FONT> ";
+
+  // 検索機能の使用?
+  $search = true;
+  $searchuri = "/folder/search/";
+
+  // 変数の処理
+  $path     = stripslashes($_REQUEST["path"]);
+  $viewpath = $folderpath.$path;
+  $pagetext = "";
+
+  // ヘッダ表示
+  include "../../header.inc.php";
+  flush();
+
+  if ($login && sizeof($MES)==0) {
+    // パスのエンコード処理
+    $patharr = preg_split("/",$path);
+
+    // フォルダの存在チェック
+    if (!file_exists($viewpath)) {
+      $MES[] = "指定されたフォルダが見つからないか既に削除されています";
+    } else {
+      $p = strrpos($path,"/");
+      if ($p>=0) {
+        $parentpath = substr($path,0,$p);
+        $oldfolder = substr($path,$p+1);
+        if ($p == 0) $parentpath = "/";
+      } else {
+        $DMES[] = "指定されたフォルダが正しくありません";
+      }
+    }
+
+    // パスからフォルダ情報の取得
+    $sql = "SELECT * FROM folders WHERE path='".stripslashes(db_textsafe($path))."'";
+    $res = pg_query($conn,$sql);
+    $cnt = pg_num_rows($res);
+    if ($cnt>0) {
+      $row = pg_fetch_array($res,0);
+      $seqno = $row["seqno"];
+      $comment = $row["comment"];
+    } else {
+      $seqno = "";
+      $comment = "";
+#      $DMES[] = "指定されたフォルダが正しくありません";
+    }
+
+    if (sizeof($DMES)>0) {
+      // エラー時
+      $pagetext .= "<BR><CENTER>\n";
+      $pagetext .= "<FONT COLOR=#FF0000>\n";
+      while (list($key,$val)=each($DMES)) {
+        $pagetext .= $val."<BR>\n";
+      }
+      $pagetext .= "</FONT>\n";
+      $pagetext .= "<FORM><INPUT TYPE=BUTTON VALUE=\"戻る\" ONCLICK=\"history.back()\"></FORM>\n";
+      $pagetext .= "</CENTER>";
+    } else {
+      // 正常時
+      $pagetext .= "
+<CENTER><BR>
+<TABLE BORDER=0 CELLPADDING=4 CELLSPACING=1 width=480 BGCOLOR=#999999><TR>
+<FORM ACTION=\"./update.phtml\" METHOD=POST>
+<INPUT TYPE=HIDDEN NAME=\"mode\" value=\"rename\">
+<INPUT TYPE=HIDDEN NAME=\"parentpath\" value=\"$parentpath\">
+<INPUT TYPE=HIDDEN NAME=\"oldfolder\" value=\"$oldfolder\">
+<INPUT TYPE=HIDDEN NAME=\"seqno\" value=\"$seqno\">
+<TD ALIGN=RIGHT WIDTH=90 NOWRAP VALIGN=TOP BGCOLOR=$td_back_left STYLE=\"line-height:15pt\">親ディレクトリ</TD>
+<TD ALIGN=LEFT BGCOLOR=$td_back STYLE=\"line-height:15pt\">".str_rcut($parentpath,82)."</TD>
+</TR>
+
+<TR>
+<TD ALIGN=RIGHT WIDTH=90 NOWRAP VALIGN=TOP BGCOLOR=$td_back_left STYLE=\"line-height:15pt\">フォルダ名</TD>
+<TD ALIGN=LEFT BGCOLOR=$td_back><INPUT TYPE=TEXT NAME=folder VALUE=\"$oldfolder\" SIZE=40 STYLE=\"width:220px\"><BR><FONT COLOR=#555555 STYLE=\"COLOR:#FF0000;FONT-SIZE:9pt;LINE-HEIGHT:12pt\">※新しいフォルダ名を入力して下さい （日本語可）<BR>※半角40文字 （全角20文字以内）まで</FONT></TD>
+</TR>
+
+<TR>
+<TD ALIGN=RIGHT WIDTH=90 NOWRAP VALIGN=TOP BGCOLOR=$td_back_left STYLE=\"line-height:15pt\">コメント</TD>
+<TD ALIGN=LEFT BGCOLOR=$td_back><TEXTAREA NAME=\"comment\" COLS=52 ROWS=5 STYLE=\"width:350px;height:100px\">$comment</TEXTAREA></TD>
+</TR>
+</TABLE><BR>
+
+<INPUT TYPE=SUBMIT VALUE=\"フォルダの名称変更\">
+</FORM>
+</CENTER>
+";
+    }
+  }
+
+  // 明細表示
+  include "../../detail.inc.php";
+
+  // フッター出力
+  include "../../footer.inc.php";
+?>

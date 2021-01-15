@@ -1,0 +1,104 @@
+<?php
+  include ("../../config.inc.php"); include ("../../lib.inc.php");
+  include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+  // ヘッダ表示
+  $pagetitle = "BBS一覧";
+  include ("../header.inc.php");
+
+  if (empty($q)) $q = 1;
+
+  if ($login) {
+    // エラーチェック
+    $board_name = get_first("boards","name","id='$bid'","");
+    if ($board_name=="") {
+      $MES[] = "指定されたボードが正しくありません";
+    }
+
+    if (sizeof($MES)>0) {
+      // エラー時
+      $txt.= "<font color=#FF0000>";
+      while (list($key,$val)=each($MES)) {
+        $txt.= $val."<br>";
+      }
+      $txt.= "</font>";
+    } else {
+      $txt.= "[".mb_convert_kana($board_name,"ak")."]";
+      $txt.= "<hr size=\"0\">";
+
+      $sql_post = "SELECT * FROM boards_post WHERE board_id='$bid' ORDER BY seqno DESC";
+      $res_post = pg_query($conn,$sql_post);
+      $cnt_post = pg_num_rows($res_post);
+      if ($cnt_post==0) {
+        $txt.= "<CENTER>";
+        $txt.= "投稿なし";
+        $txt.= "</CENTER>";
+      } else {
+        // ページ計算
+        $allpages = floor($cnt_post/$mobile_bbsrows)+1;
+        if ($q>$allpages) $q = 1;
+        $s_row = ($q-1) * $mobile_bbsrows;
+        $e_row = $q * $mobile_bbsrows - 1;
+        if ($e_row>$cnt_post-1) {$e_row = $cnt_post-1;}
+        if ($cnt_post-1>$e_row) {$nextpage = true;}
+        // 発言一覧表示
+        $c = 0;
+
+        if ($q>1) {
+          $txt.= "<CENTER>&lt;<A HREF=\"./board.phtml$serial&sn=$sn&bid=$bid&p=$p&q=".($q-1)."\">前の$mobile_bbsrows件</A>&gt;</CENTER>";
+        }
+
+        for($i=$s_row;$i<=$e_row;$i++) {
+          $c++;
+          $row_post = pg_fetch_array($res_post,$i);
+          $seqno   = $row_post["seqno"];
+          $subject = mb_convert_kana($row_post["subject"],"ak");
+          $stamp   = $row_post["stamp"];
+
+#          if (strlen($subject)<=$charW*2) {
+#            $ssubject = $subject;
+#          } else {
+#            $ssubject = mb_strcut($subject,0,$charW*2-1).".";
+#          }
+
+#          $ssubject = $subject;
+
+          if (strlen($subject)<=$charW*2*2-15) {
+            $ssubject = $subject;
+          } else {
+            $ssubject = mb_strcut($subject,0,$charW*2*2-16).".";
+          }
+
+          $cnt_kidoku = get_first("boards_res","seqno","board_id='$bid' AND seqno=$seqno AND user_id='$login_id'",0);
+
+          $txt.= "&emoji".$c.";";
+          $txt.= "<A HREF=\"/i/bbs/view/$serial&sn=$sn&bid=$bid&s=$seqno&p=$p&q=$q\" $accesskey=$c>";
+          if ($cnt_kidoku==0) {
+            $txt.= "<FONT COLOR=#FF0000>";
+            $txt.= $ssubject;
+            $txt.= "</FONT>";
+          } else {
+            $txt.= $ssubject;
+          }
+          $txt.= "</A>";
+          $txt.= "(";
+          $txt.= date("m/d H:i",datetime2timestamp($stamp));
+          $txt.= ")";
+          $txt.= "<BR>";
+        }
+
+        if ($nextpage) {
+          $txt.= "<CENTER>&lt;<A HREF=\"./board.phtml$serial&sn=$sn&bid=$bid&p=$p&q=".($q+1)."\">次の".$mobile_bbsrows."件</A>&gt;</CENTER>";
+        }
+
+      }
+      $txt.= "<hr size=\"0\">";
+      $txt.= "<DIV ALIGN=RIGHT>";
+      $txt.= "&emoji0;<A HREF=\"./regist/$serial&sn=$sn&bid=$bid&p=$p&q=$q\" $accesskey=0>新規投稿</A>";
+      $txt.= "</DIV>";
+
+    }
+  }
+  // フッタ表示
+  include ("../footer.inc.php");
+?>

@@ -1,0 +1,63 @@
+<?php
+  include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+  include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+  // header表示
+  $pagetitle = "住所録 コメント表示";
+  include ("../../header.inc.php");
+
+  // エラー判定
+  if ($login) {
+    if (empty($_GET["n"])) {
+      $n = 1;
+    } else {
+      $n = $_GET["n"];
+    }
+    if (!empty($s)) {
+    $sql = "SELECT * FROM address WHERE seqno=$s";
+      $res = pg_query($conn, $sql);
+      if (pg_num_rows($res)<1) {
+        $MES[] = "正しく選択されていません";
+      } else {
+        $row = pg_fetch_array($res,0);
+        $comment = $row["comment"];
+      }
+    } else {
+      $MES[] = "正しくページからお入りください";
+    }
+
+    if (sizeof($MES)>0) {
+      // エラー表示
+      $txt.= "<FONT COLOR=#FF0000>";
+      while (list($key,$val)=each($MES)) {
+        $txt.= $val."<BR>";
+      }
+      $txt.= "</FONT>";
+    } else {
+      // 正常時
+      $maxlen = 512;
+      $comment = str_replace("\r\n","<BR>",$comment);
+      // ページに分割
+      while(true) {
+        $rowtext = mb_strcut($comment,0,$maxlen);
+        $notes[] = $rowtext;
+        $comment = str_replace($rowtext,"",$comment);
+        if ($note=="") break;
+        if (strlen($comment)<$maxlen) {
+          $notes[] = $comment;
+          break;
+        }
+      }
+      $txt.= "<CENTER>";
+      $txt.= $n."/".sizeof($comments);
+      $txt.= "</CENTER>";
+      if (sizeof($comments)>1) {
+        $txt.= "<hr size=\"0\">";
+        $txt.= $comments[$n-1];
+        $txt.= " ⇒ <A HREF=\"./comment.phtml$serial&s=$s&n=".($n+1)."\">次頁へ</A>";
+      }
+    }
+  }
+
+	include ("../../footer.inc.php");
+?>

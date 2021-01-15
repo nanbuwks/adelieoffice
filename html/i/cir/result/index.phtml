@@ -1,0 +1,91 @@
+<?php
+  include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+  include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+  $pagetitle = "回覧への回答";
+  include ("../../header.inc.php");
+
+  if ($login) {
+    // 前処理
+    $note = textsafe(sjis2euc(remove_emoji($note)));
+    if (!empty($_POST["s"])) $s = $_POST["s"];
+
+    // エラー判定
+    if (empty($s) || !is_numeric($s)) {
+      $MES[] = "正しいページからお入りください";
+    } else {
+      // 回覧データの確認
+      $sql = "SELECT * FROM circulas WHERE seqno=$s";
+      $res = pg_query($conn,$sql);
+      if (pg_num_rows($res)==0) {
+        $MES[] = "回覧情報が正しくないか既に削除されています";
+      } else {
+        $row = pg_fetch_array($res,0);
+        $user_id_to = $row["user_id_to"];
+        $user_ids_to = preg_split(",",$user_id_to);
+      }
+    }
+    if (sizeof($MES)==0) {
+      // 回覧の更新
+      if (get_count("circulas_ret","refno=$s AND user_id='$login_id'")==0) {
+        // 登録
+        $seqno = get_last("circulas_ret","seqno","refno=$s",0)+1; // seqno採番
+        $sql  = "INSERT INTO circulas_ret (";
+        $sql .= "refno,seqno,user_id,note,result_sign,createstamp";
+        $sql .= ") VALUES (";
+        $sql .= $s.",";
+        $sql .= $seqno.",";
+        $sql .= "'".$login_id."',";
+        $sql .= "'".db_textsafe($note)."',";
+        $sql .= "'t',";
+        $sql .= "'now'";
+        $sql .= ")";
+      } else {
+        // 更新
+        $sql  = "UPDATE circulas_ret SET ";
+        $sql .= "note='".db_textsafe($note)."',";
+        $sql .= "result_sign='t',";
+        $sql .= "createstamp='now'";
+        $sql .= " WHERE refno=$s AND user_id='$login_id'";
+      }
+      echo "<!--";
+      $res = pg_query($conn,$sql);
+      $cnt = pg_affected_rows($res);
+      if ($cnt==0) {
+        $MES[] = "登録に失敗しました";
+      }
+
+      if (sizeof($MES)==0) {
+        // 全て回答済み？
+        $cnt_allresult = get_count("circulas_ret","refno=$s AND result_sign='t'");
+        if (sizeof($user_ids_to) <= $cnt_allresult) {
+          $sql = "UPDATE circulas SET result_sign='t' WHERE seqno=$s";
+          $res = pg_query($conn, $sql);
+        }
+      }
+
+      echo "-->";
+    }
+
+    if (sizeof($MES) > 0) {
+      // エラーメッセージ出力
+      $txt.= "<FONT color=#FF0000>";
+      while (list($key,$val)=each($MES)) {
+        $txt.= $val."<br>";
+      }
+      $txt.= "</FONT>";
+    } else {
+      // 正常時
+      $txt.= "<FORM ACTION=\"../\" METHOD=POST>";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+      $txt.= "<CENTER><BR>";
+      $txt.= "登録完了";
+      $txt.= "<BR><BR>\n";
+      $txt.= "<INPUT TYPE=SUBMIT VALUE=\"選択ページへ\">\n";
+      $txt.= "</CENTER>\n";
+      $txt.= "</FORM>\n";
+    }
+  }
+
+	include ("../../footer.inc.php");
+?>

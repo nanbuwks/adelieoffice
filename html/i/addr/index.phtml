@@ -1,0 +1,23 @@
+<?php
+	include ("../../config.inc.php"); include ("../../lib.inc.php");
+	include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+	$pagetitle = "住所録";
+	include ("../header.inc.php");
+
+	if ($login) {
+		## メニュータイトル
+		$txt.= "住所録&emojitel;";
+		$txt.= "<hr size=\"0\">";
+
+		## メニュー選択
+		$txt.= "&emoji1;<a href=\"./kana.phtml".$serial."&type=C&uid=".$uid."\" accesskey=1>会社で検索</a><br>";
+		$txt.= "&emoji2;<a href=\"./kana.phtml".$serial."&type=P&uid=".$uid."\" accesskey=2>名前で検索</a><br>";
+		$txt.= "&emoji3;<a href=\"./search.phtml".$serial."&type=P&uid=".$uid."\" accesskey=3>キーワードで検索</a><br>";
+		$txt.= "<hr size=\"0\">";
+		$txt.= "<div align=\"right\">";
+		$txt.= "&emoji0;<a href=\"./regist/".$serial."\" ".$accesskey."=0>新規住所</a>";
+		$txt.= "</div>";
+	}
+	include ("../footer.inc.php");
+?>

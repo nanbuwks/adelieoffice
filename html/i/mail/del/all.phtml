@@ -1,0 +1,52 @@
+<?php
+	include ("../../config.inc.php"); include ("../../lib.inc.php");
+	include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+	$pagetitle = "伝言メモの全削除";
+	include ("../../header.inc.php");
+
+	if ($login) {
+		if ($type=="send") {
+			$sql_memo = "SELECT * FROM memo WHERE id_from='".$login_id."'";
+			$res_memo = pg_query($conn,$sql_memo);
+			if(pg_num_rows($res_memo) == 0){
+				$MES[] = "送信メモはありません";
+			}
+		} else {
+			$sql_memo_answer = "SELECT * FROM memo_answer WHERE id_to='".$login_id."'";
+			$res_memo_answer = pg_query($conn,$sql_memo_answer);
+			if(pg_num_rows($res_memo_answer) == 0){
+				$MES[] = "受信メモはありません";
+			}
+		}
+
+		if (sizeof($MES)>0) {
+			## エラー出力
+			$txt.= "<font color=\"#ff0000\">";
+			while (list($key,$val)=each($MES)) {
+				$txt.= $val."<br>";
+			}
+			$txt.= "</font>";
+			$txt.= "<div align=\"right\">";
+			if ($type=="send") {
+				$txt.= "<form action=\"../list_send.phtml\" method=\"post\">";
+			} else {
+				$txt.= "<form action=\"../\" method=\"post\">";
+			}
+			$txt.= "<input type=\"hidden\" name=\"ms\" value=\"$ms\">";
+			$txt.= "<input type=\"submit\" value=\"戻る\">";
+			$txt.= "</form>";
+			$txt.= "</div>";
+		} else {
+			$txt.= "<br>";
+			$txt.= "<form name=\"del\" action=\"./alldel.phtml\" method=\"post\">";
+			$txt.= "<input type=\"hidden\" name=\"ms\" value=\"".$ms."\">";
+			$txt.= "<input type=\"hidden\" name=\"type\" value=\"".$type."\">";
+			$txt.= "メモを全て削除します。よろしいですか？<br>";
+			$txt.= "<font color=\"#ff0000\">一度削除したメモを元に戻すことはできませんのでご注意ください。</font><br>";
+			$txt.= "<div align=\"center\"><input type=\"submit\" value=\"実行\"></div>";
+			$txt.= "</form>";
+		}
+	}
+	include ("../../footer.inc.php");
+?>

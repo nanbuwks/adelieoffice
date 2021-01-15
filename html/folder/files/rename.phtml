@@ -1,0 +1,140 @@
+<?php
+  include "../../config.inc.php"; include "../../lib.inc.php";
+
+  $linktext  = "<A HREF=\"../../\" CLASS=\"BAR\">トップページ</A> &gt; ";
+  $linktext .= "<A HREF=\"../\" CLASS=\"BAR\">Webフォルダ</A> &gt; ";
+  $linktext .= "<FONT COLOR=#FFFF00>ファイルの名称変更</FONT> ";
+
+  include "../../header.inc.php";
+
+  if ($login && sizeof($MES)==0) {
+    #// 操作権限のチェック
+    #if (sizeof($MES)==0 && $login && !empty($login_id) && $upload_sign!='t') {
+    #  $DMES[] = "ご利用中のアカウントではファイル名の変更はできません";
+    #}
+
+    // パラメーターセット
+    if (!empty($_GET["path"])) {
+      $path = stripslashes(urldecode($_GET["path"]));
+    }
+    if (!empty($_POST["path"])) {
+      $path = urldecode($_POST["path"]);
+    }
+    if (!empty($_GET["name"])) {
+      $name = stripslashes(urldecode($_GET["name"]));
+    }
+    if (!empty($_POST["name"])) {
+      $name = urldecode($_POST["name"]);
+    }
+    #$path = urldecode($_REQUEST["path"]);
+    #$name = urldecode($_REQUEST["name"]);
+
+    $pos = strrpos($name,".");
+    if ($pos>0) {
+      $file = substr($name,0,$pos);
+      $ext  = substr($name,$pos+1);
+    } else {
+      $file = $name;
+      $ext  = "";
+    }
+
+    // エラーチェック
+    if (sizeof($DMES)==0) {
+      $removepath = $folderpath.$path;
+      $removefile = $folderpath.$path."/".$name;
+      if (!file_exists($removepath)) {
+        $DMES[] = "指定されたフォルダが見つかりません。";
+      } else {
+        $fp = fopen($removepath,"r");
+        if ($fp == false) {
+          $DMES[] = "指定されたフォルダを開くことができませんでした。";
+        } else {
+          fclose($fp);	
+          if (!file_exists($removefile)) {
+            $DMES[] = "指定されたファイルが見つかりません。";
+          } else {
+            $fp = fopen($removefile,"r");
+            if ($fp == false) {
+              $DMES[] = "指定されたファイルを開くことができませんでした。";
+            } else {
+              fclose($fp);
+            }
+          }
+        }
+      }
+    }
+
+    if (sizeof($DMES)==0) {
+      // 名前からファイル情報の取得
+      $sql = "SELECT * FROM files WHERE path='".db_textsafe($path)."' AND filename='".db_textsafe($name)."'";
+      $res = pg_query($conn,$sql);
+      $cnt = pg_num_rows($res);
+      if ($cnt>0) {
+        $row = pg_fetch_array($res,0);
+        $comment = $row["comment"];
+      } else {
+        $comment = "";
+#         $DMES[] = "指定されたフォルダが正しくありません";
+      }
+    }
+
+    if (sizeof($DMES)>0) {
+      // エラー時
+      $pagetext .= "<BR><CENTER>\n";
+      $pagetext .= "<FONT COLOR=#FF0000>\n";
+      while (list($key,$val)=each($DMES)) {
+        $pagetext .= $val."<BR>\n";
+      }
+      $pagetext .= "</FONT>\n";
+      $pagetext .= "<FORM><INPUT TYPE=BUTTON VALUE=\"戻る\" ONCLICK=\"history.back()\"></FORM>\n";
+      $pagetext .= "</CENTER>";
+    } else {
+      // 正常時
+      $pagetext .= "
+<CENTER><BR>新しいファイル名を入力してから、ファイル名の変更ボタンをクリックしてください。<BR>コメントを書いておくと、後で検索に利用することができます。<BR><BR>
+<TABLE BORDER=0 CELLPADDING=4 CELLSPACING=1 width=480 BGCOLOR=#999999><TR>
+<FORM ACTION=\"./update.phtml\" METHOD=POST>
+<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"$p\">
+<INPUT TYPE=HIDDEN NAME=\"mode\" VALUE=\"rename\">
+<INPUT TYPE=HIDDEN NAME=\"path\" VALUE=\"".urlencode($path)."\">
+<INPUT TYPE=HIDDEN NAME=\"oldname\" VALUE=\"".$name."\">
+<INPUT TYPE=HIDDEN NAME=\"ext\" VALUE=\"$ext\">
+<TD ALIGN=RIGHT WIDTH=90 NOWRAP VALIGN=TOP BGCOLOR=$td_back_left>カレントフォルダ</TD>
+<TD ALIGN=LEFT BGCOLOR=$td_back>".str_rcut($path,82)."</TD>
+</TR>
+";
+      if (substr($file,0,1)==".") {
+        $file_org = substr($file,1);
+      } else {
+        $file_org = $file;
+      }
+      $pagetext .= "
+<TR>
+<TD ALIGN=RIGHT WIDTH=90 NOWRAP VALIGN=TOP BGCOLOR=$td_back_left>ファイル名</TD>
+<TD ALIGN=LEFT BGCOLOR=$td_back>
+<TABLE BORDER=0 CELLPADDING=0 CELLSPACING=0><TR>
+<TD><INPUT TYPE=TEXT NAME=name SIZE=40 STYLE=\"width:220px\" tabindex=1 VALUE=\"".$file."\"></TD>
+<TD>&nbsp;</TD>
+<TD><IMG SRC=\"".ext_check("a.".$ext)."\" ALT=\"拡張子:".strtolower($ext)."\" WIDTH=32 HEIGHT=32 BORDER=0></TD>
+<TD VALIGN=BOTTOM>拡張子( ".strtolower($ext)." )</TD>
+</TR></TABLE>
+</TD>
+</TR>
+
+<TR>
+<TD ALIGN=RIGHT WIDTH=90 NOWRAP VALIGN=TOP BGCOLOR=$td_back_left>コメント</TD>
+<TD ALIGN=LEFT BGCOLOR=$td_back><TEXTAREA NAME=\"comment\" COLS=52 ROWS=5 STYLE=\"width:350px;height:100px\">$comment</TEXTAREA></TD>
+</TR>
+</TABLE><BR>
+
+<INPUT TYPE=SUBMIT VALUE=\"ファイルの名称変更\">
+</FORM>
+
+</CENTER>
+";
+    }
+  }
+
+  include "../../detail.inc.php";
+  include "../../footer.inc.php";
+?>

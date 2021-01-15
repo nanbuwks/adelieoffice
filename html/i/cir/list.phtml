@@ -1,0 +1,111 @@
+<?php
+	include ("../../config.inc.php"); include ("../../lib.inc.php");
+	include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+	$pagetitle = "回覧板一覧";
+	include ("../header.inc.php");
+
+	if (empty($type)) $type="tonot";
+	if (empty($p) || !is_numeric($p)) $p = 1;
+
+	if ($login) {
+		// エラーチェック
+
+		if (sizeof($MES) > 0) {
+			// エラー表示
+			$txt.= "<FONT COLOR=#FF0000>";
+			for ($i=0;$i<sizeof($MES);$i++) {
+				$txt.= $MES[$i]."<br>\n";
+			}
+			$txt.= "</FONT>";
+		} else {
+			// 回覧一覧
+			if ($type=="tonot") {
+				$txt.= "未読分 ";
+				$sql  = "SELECT circulas.*, (circulas_ret.result_sign) AS res_sign FROM circulas LEFT JOIN (SELECT * FROM circulas_ret WHERE user_id ='$login_id') AS circulas_ret ON circulas.seqno = circulas_ret.refno WHERE ";
+				$sql .= " user_id_to ~* '(^|,)$login_id(,|$)' ";
+				$sql .= "AND ";
+				$sql .= "(circulas_ret.result_sign='f' OR  circulas_ret.result_sign is null)";
+				$sql .= "ORDER BY circulas.createstamp DESC";
+			} elseif ($type=="tohas") {
+				$txt.= "既読分 ";
+				$sql  = "SELECT circulas.*, (circulas_ret.result_sign) AS res_sign FROM circulas LEFT JOIN (SELECT * FROM circulas_ret WHERE user_id ='$login_id') AS circulas_ret ON circulas.seqno = circulas_ret.refno WHERE ";
+				$sql .= " user_id_to ~* '(^|,)$login_id(,|$)' ";
+				$sql .= "AND ";
+				$sql .= "circulas_ret.result_sign='t' ";
+				$sql .= "ORDER BY circulas.createstamp DESC";
+			} elseif ($type=="fromnot") {
+				$txt.= "回覧中 ";
+				$sql  = "SELECT * FROM circulas WHERE ";
+				$sql .= " user_id = '$login_id' AND result_sign='f' ";
+				$sql .= "ORDER BY createstamp DESC";
+			} elseif ($type=="fromhas") {
+				$txt.= "回覧済 ";
+				$sql  = "SELECT * FROM circulas WHERE ";
+				$sql .= " user_id = '$login_id' AND result_sign='t' ";
+				$sql .= "ORDER BY createstamp DESC";
+			}
+			$txt.= "⇒<A HREF=\"./$serial&sn=$sn\">変更</A>";
+
+			$res = pg_query($conn,$sql);
+			$cnt = pg_num_rows($res);
+			$txt.= "<hr size=\"0\">\n";
+
+			if ($cnt == 0) {
+				$txt.= "回覧はありません<BR>\n";
+			} else {
+				// ページ計算
+				$allpages = floor($cnt/$mobile_rows)+1;
+				if ($p>$allpages) $p = 1;
+				$s_row = ($p-1) * $mobile_rows;
+				$e_row = $p * $mobile_rows - 1;
+				if ($e_row>$cnt-1) {$e_row = $cnt-1;}
+				if ($cnt-1>$e_row) {$nextpage = true;}
+
+				// 前ページへ移動表示
+				if ($p>1) {
+					$txt.= "<CENTER>&lt;<A HREF=\"./list.phtml$serial&sn=$sn&type=$type&p=".($p-1)."\">前の".$mobile_rows."件</A>&gt;</CENTER>";
+				}
+
+				$c = 0;
+				for($i=$s_row;$i<=$e_row;$i++) {
+					$c++;
+					$row = pg_fetch_array($res,$i);
+
+					$txt.= "&emoji".$c.";";
+					$subject = mb_convert_kana($row["subject"],"ak"); //半角に
+					$subject = preg_replace("/\x0D\x0A|\x0D|\x0A|\r\n|<BR>/","<BR>",$subject);//改行カット
+					if (strlen($subject)<=$charW*2*2-15) {
+						$subject = $subject;
+					} else {
+						if ($charW<10) $charW=10;
+						$subject = mb_strcut($subject,0,$charW*2*2-16).".";
+					}
+					$cnt_kidoku = get_first("circulas_res","seqno","seqno=".$row["seqno"]." AND user_id='$login_id'",0);
+					$txt.= "<A HREF=\"./view.phtml$serial&sn=$sn&p=$p&type=$type&s=".$row["seqno"]."\" $accesskey=$c>";
+					if ($cnt_kidoku==0) $txt.= "<FONT COLOR=#FF0000>";
+					$txt.= $subject;
+					if ($cnt_kidoku==0) $txt.= "</FONT>";
+					$txt.= "</A>";
+					$txt.= "(";
+					$txt.= date("m/d H:i",datetime2timestamp($row["createstamp"]));
+					$txt.= ")";
+
+					$txt.= "<BR>";
+				}
+				// 次ページへ移動表示
+				if ($nextpage) {
+					$txt.= "<CENTER>&lt;<A HREF=\"./list_recv.phtml$serial&sn=$sn&type=$type&p=".($p+1)."\">次の".$mobile_rows."件</A>&gt;</CENTER>\n";
+				}
+			}
+
+			$txt.= "<hr size=\"0\">";
+			$txt.= "<DIV ALIGN=RIGHT>";
+			$txt.= "&emoji0;";
+			$txt.= "<a href=\"./add/?ms=$ms&sn=$sn\" $accesskey=0>";
+			$txt.= "新規回覧</A>";
+			$txt.= "</DIV>\n";
+		}
+	}
+	include ("../footer.inc.php");
+?>

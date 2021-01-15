@@ -1,0 +1,286 @@
+<?php
+	include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+	include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+	$pagetitle = "予定表 施設予約";
+
+	include ("../../header.inc.php");
+
+	if ($login) {
+		// 前処理
+		$note = textsafe(sjis2euc(remove_emoji($_REQUEST["note"])));
+
+		// エラーチェック
+		// ユーザー補足情報獲得(未指定時時刻計算用)
+		$sql = "select from_h,from_m,to_h,to_m from users where id = '".$user_id."'";
+		$res = pg_query($conn,$sql);
+		$row = pg_fetch_array($res,0);
+
+		if ($row["from_h"]<>"" and $row["from_h"]<>-1){
+			$calc_frh = $row["from_h"];
+			$calc_fri = $row["from_m"];
+		} else {
+			$calc_frh = 9;
+			$calc_fri = 0;
+		}
+
+		if ($row["to_h"]<>"" and $row["to_h"]<>-1){
+			$calc_toh = $row["to_h"];;
+			$calc_toi = $row["to_m"];
+		} else {
+			$calc_toh = 17;
+			$calc_toi = 0;
+		}
+
+		if ($errorthrou=="") {
+			$errorthrou = "false";
+		}
+
+		// $tousers で users のid確認
+		if (is_array($tousers)) {
+			while (list($seq,$ids)=each($tousers)) {
+				$touser[] = $ids;
+			}
+
+			for($i=0;$i<sizeof($touser);$i++) {
+				$sql = "SELECT id FROM users where id='".$touser[$i]."'";
+				$res = pg_query($conn,$sql);
+				if (pg_num_rows($res) > 0){
+					if ($id_to!="") { $id_to .= ","; };
+					$id_to .= $touser[$i];
+				}
+			}
+		}
+		if ($id_to != "") { $id_to_users = preg_split(",",$id_to); }
+
+		// ブッキングチェック用日付計算
+		$frdate = $fry."-".$frm."-".$frd;
+		$todate = $toy."-".$tom."-".$tod;
+		$frdatestamp = date2timestamp($frdate);
+		$todatestamp = date2timestamp($todate);
+		if ($frh==-1 and $fri!=-1 or $frh!=-1 and $fri==-1) {
+			$frtime = "";
+		} else {
+			if ($frh==-1 or $fri==-1) {
+				$frtime = "";
+			} else {
+				$frtime = $frdate." ".$frh.":".$fri.":00";
+				$frtimestamp = datetime2timestamp($frtime);
+			}
+		}
+		if ($toh==-1 and $toi!=-1 or $toh!=-1 and $toi==-1) {
+			$totime = "";
+		} else {
+			if ($toh==-1 or $toi==-1) {
+				$totime = "";
+			} else {
+				$totime = $todate." ".$toh.":".$toi.":00";
+				$totimestamp = datetime2timestamp($totime);
+			}
+		}
+
+		if ($frtime != "") {
+			$check_frtime = $frtime;
+		} else {
+			if ($frdatestamp==$todatestamp and $totime != "") {
+				$check_frtimestamp = ($totimestamp-3600*2)+1;
+				$check_frtime = $frdate." ".date("H:i",$check_frtimestamp).":00";
+			} else {
+				$check_frtime = $frdate." ".$calc_frh.":".$calc_fri.":00";
+			}
+		}
+		if ($totime != "") {
+			$check_totime = date("Y-m-d H:i",($totimestamp-1)).":00";
+		} else {
+			if ($frdatestamp==$todatestamp and $frtime != "") {
+				$check_totimestamp = ($frtimestamp+3600*2)-1;
+				$check_totime = date("Y-m-d H:i",$check_totimestamp).":00";
+			} else {
+				$check_totime = date("Y-m-d H:i",datetime2timestamp($todate." ".$calc_toh.":".$calc_toi.":00")).":00";
+			}
+		}
+		if ((empty($s) and $mine != "f") or (!empty($s))) { // 自身を除外時はチェックを除外
+			// ブッキングチェック
+			if ($frh!=-1 and $toh!=-1) {
+				$sql  = "SELECT * FROM schedules WHERE (";
+				$sql .= "timefrom <> null and timeto <> null and "; 
+				$sql .= "((timefrom > '".$check_frtime."') and (timeto < '".$check_totime."')) or "; 
+				$sql .= "((timeto > '".$check_frtime."') and (timeto < '".$check_totime."')) or "; 
+				$sql .= "((timefrom > '".$check_frtime."') and (timefrom < '".$check_totime."')) or "; 
+				$sql .= "((timefrom <= '".$check_frtime."') and (timeto >= '".$check_totime."'))"; 
+				$sql .= ") and user_id='".$user_id."' ";
+				if (!empty($s)) {
+					$sql .= " and seqno<>".$s." ";
+				}
+				$res_check = pg_query($conn,$sql);
+				$cnt_check = pg_num_rows($res_check);
+				if ($cnt_check>0) {
+					$WMES[] = "指定された時刻には".$cnt_check."件スケジュールが登録されています";
+				}
+			}
+		}
+		if ($id_to != "") {
+			if ($of!=0 && $of!=1) {
+				$MES[] = "予定を共有する場合は、非公開にすることはできません";
+			}
+		}
+
+		// 共有者のブッキングチェック
+		if ($id_to != "") {
+			for ($i=0;$i<sizeof($id_to_users);$i++){
+				$sql  = "SELECT * FROM schedules WHERE (";
+				$sql .= "(timefrom <> null and timeto <> null) and "; 
+				$sql .= "((timefrom > '".$check_frtime."') and (timeto < '".$check_totime."')) or "; 
+				$sql .= "((timeto > '".$check_frtime."') and (timeto < '".$check_totime."')) or "; 
+				$sql .= "((timefrom > '".$check_frtime."') and (timefrom < '".$check_totime."')) or "; 
+				$sql .= "((timefrom <= '".$check_frtime."') and (timeto >= '".$check_totime."'))"; 
+				$sql .= ") and user_id='".$id_to_users[$i]."' ";
+				if ($s!="") {
+					$sql .= " and seqno<>".$s." and ref_seqno<>".$s;
+				}
+				$res_check = pg_query($conn,$sql);
+
+				if (pg_num_rows($res_check)>0) {
+
+					$sql = "SELECT * FROM users where id='".$id_to_users[$i]."'";
+					$res_user = pg_query($conn,$sql);
+					if (pg_num_rows($res_user)>0) {
+						$row_user = pg_fetch_array($res_user, 0);  
+						$name_ryaku = $row_user["name_ryaku"];
+					} else {
+						$name_ryaku = "";
+					}
+
+					$WMES[] = $name_ryaku."様 の指定された時刻に既に他のスケジュールが登録されています";
+					break;
+				}
+			}
+		}
+
+		if (sizeof($MES)>0) {
+			// エラー表示
+			$txt .= "<CENTER>";
+			$txt .= "<FONT COLOR=#FF0000>";
+			while (list($key,$val)=each($MES)) {
+				$txt .= $val."<BR>\n";
+			}
+			$txt .= "</FONT>\n";
+			$txt .= "</CENTER>";
+		} else {
+			// OK or ワーニング
+			if (sizeof($WMES)>0) {
+				$txt .= "<CENTER>";
+				$txt .= "<FONT COLOR=#FF0066>";
+				while (list($key,$val)=each($WMES)) {
+					$txt .= $val."<BR>\n";
+				}
+				$txt .= "</FONT>";
+				$txt .= "</CENTER><hr size=\"0\">";
+			}
+
+			$txt .= "施設を同時に予約することができます<BR>\n";
+
+			$row_height = $char_h-4;
+			if ($row_height<3) $row_height=3;
+
+#			$rid = "";
+#			$rcnt = 1;
+			if (!empty($s) && $rid=="") {
+				$sql_reserve = "SELECT * FROM rooms_reserve WHERE schedule_seqno=$s";
+				$res_reserve = pg_query($conn,$sql_reserve);
+				$cnt_reserve = pg_num_rows($res_reserve);
+				if ($cnt_reserve>0) {
+					$row_reserve = pg_fetch_array($res_reserve,0);
+					$rid = $row_reserve["room_id"];
+					$rcnt = $row_reserve["member_count"];
+				}
+			}
+			if (empty($rcnt)) $rcnt = 1;
+
+			$txt .= "<FORM ACTION=\"./add.phtml\" METHOD=POST>";
+			$txt .= "施設・設備:<BR>";
+			$txt .= "<SELECT NAME=\"rid\" SIZE=$row_height>";
+			$sql_room = "SELECT * FROM rooms ORDER BY seqno";
+			$res_room = pg_query($conn,$sql_room);
+			$cnt_room = pg_num_rows($res_room);
+			if ($cnt_room>0) {
+				$txt .= "<OPTION VALUE=\"none\"";
+				if ($rid=="") $txt .= " SELECTED";
+				$txt .= ">予約しない</OPTION>";
+				for ($i=0;$i<$cnt_room;$i++) {
+					$row_room = pg_fetch_array($res_room,$i);
+
+					// 利用権限
+					$use = false;
+
+					$manage_id = $row_room["manage_id"];
+					$roomname  = $row_room["name"];
+					$group_ids = $row_room["view_group_ids"];
+					$user_ids  = $row_room["view_user_ids"];
+
+					if ($manage_id==$login_id || ($group_ids=="" && $user_ids=="")) {
+						// 管理者 or 施設管理者 or 制約のない施設
+						$use = true;
+					} else {
+						if ($group_ids!="") {
+							$view_group_id = preg_split(",",$group_ids);
+							if (sizeof($view_group_id)>0) while (list($seq,$id)=each($view_group_id)) {
+								$chkcnt = get_count("users_entry","user_id='$login_id' AND group_id='$id'");
+								if ($chkcnt>0) { $use = true; break; }
+							}
+						}
+						if ($user_ids!="") {
+							$view_user_id = preg_split(",",$user_ids);
+							if (sizeof($view_user_id)>0) while (list($seq,$id)=each($view_user_id)) {
+								if ($login_id==$id) { $use = true; break; }
+							}
+						}
+					}
+					if ($use) {
+						$txt .= "<OPTION VALUE=\"".$row_room["id"]."\"";
+						if ($rid == $row_room["id"]){
+							$txt .= " SELECTED";
+						}
+						$txt .= ">".$row_room["name"];
+						$txt .= "";
+					}
+				}
+			}
+			$txt .= "</SELECT><BR>";
+			$txt .= "利用人数:<BR>";
+			$txt .= "<INPUT TYPE=TEXT NAME=\"rcnt\" SIZE=3 VALUE=$rcnt ".inputmode("numeric").">";
+
+			$txt .= "<INPUT TYPE=HIDDEN NAME=ms VALUE=\"$ms\">";
+			if (!empty($s)) $txt .= "<INPUT TYPE=HIDDEN NAME=s VALUE=$s>";
+			$txt .= "<INPUT TYPE=HIDDEN NAME=user_id VALUE=\"$user_id\">";
+			$txt .= "<INPUT TYPE=HIDDEN NAME=uid VALUE=$uid>";
+#			$txt .= "<INPUT TYPE=HIDDEN NAME=r VALUE=$r>";
+			if (!empty($a)) $txt .= "<INPUT TYPE=HIDDEN NAME=a VALUE=$a>";
+			$txt .= "<INPUT TYPE=HIDDEN NAME=fry VALUE=$fry>";
+			$txt .= "<INPUT TYPE=HIDDEN NAME=frm VALUE=$frm>";
+			$txt .= "<INPUT TYPE=HIDDEN NAME=frd VALUE=$frd>";
+			$txt .= "<INPUT TYPE=HIDDEN NAME=frh VALUE=$frh>";
+			$txt .= "<INPUT TYPE=HIDDEN NAME=fri VALUE=$fri>";
+			$txt .= "<INPUT TYPE=HIDDEN NAME=toy VALUE=$toy>";
+			$txt .= "<INPUT TYPE=HIDDEN NAME=tom VALUE=$tom>";
+			$txt .= "<INPUT TYPE=HIDDEN NAME=tod VALUE=$tod>";
+			$txt .= "<INPUT TYPE=HIDDEN NAME=toh VALUE=$toh>";
+			$txt .= "<INPUT TYPE=HIDDEN NAME=toi VALUE=$toi>";
+			if (!empty($kind)) $txt .= "<INPUT TYPE=HIDDEN NAME=kind VALUE=$kind>";
+			if (!empty($over)) $txt .= "<INPUT TYPE=HIDDEN NAME=over VALUE=t>\n";
+			if (!empty($note)) $txt .= "<INPUT TYPE=HIDDEN NAME=note VALUE=\"$note\">\n";
+			if (!empty($of)) $txt .= "<INPUT TYPE=HIDDEN NAME=of VALUE=$of>\n";
+			if (!empty($id_to)) $txt .= "<INPUT TYPE=HIDDEN NAME=id_to VALUE=\"$id_to\">";
+
+			$txt .= "<CENTER>";
+			if (empty($s)) {
+				$txt .= "<INPUT TYPE=SUBMIT VALUE=登録>";
+			} else {
+				$txt .= "<INPUT TYPE=SUBMIT VALUE=更新>";
+			}
+			$txt .= "</CENTER>";
+			$txt .= "</FORM>\n";
+		}
+	}
+	include "../../footer.inc.php";
+?>

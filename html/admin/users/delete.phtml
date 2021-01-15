@@ -1,0 +1,172 @@
+<?php
+include "../../config.inc.php"; include "../../lib.inc.php";
+include "../../language.inc.php";
+
+$linktext  = "<A HREF=\"../../\" CLASS=\"BAR\">トップページ</A> &gt; ";
+$linktext .= "<A HREF=\"../\" CLASS=\"BAR\">管理者メニュー</A> &gt; ";
+$linktext .= "<A HREF=\"./?p=$p\" CLASS=\"BAR\">ユーザー設定</A> &gt; ";
+$linktext .= "<FONT COLOR=#FFFF00>ユーザー削除</FONT> ";
+
+include "../../login_check.inc.php";
+
+function remove_userid($table,$field,$id) {
+	global $conn;
+	$sql = "SELECT $field FROM $table WHERE $field ~* '(^|,)".$id."(,|$)' GROUP BY $field";
+	$res = pg_query($conn,$sql);
+	$cnt = pg_num_rows($res);
+	if ($cnt>0) {
+		for ($i=0;$i<$cnt;$i++) {
+			$row = pg_fetch_array($res,$i);
+			$old_ids = $row[$field];
+			$ids = preg_replace("/(^|,)(".$id.")(,|$)/","$1$3",$old_ids);
+			$ids = str_replace(",,",",",$ids);
+			$ids = preg_replace("/^,/","",$ids);
+			$ids = preg_replace("/,$/","",$ids);
+
+			$sql_upd = "UPDATE $table SET $field='$ids' WHERE $field = '$old_ids'";
+			pg_query($sql_upd);
+		}
+	}
+}
+
+if (!empty($_REQUEST["p"])) $p = $_REQUEST["p"];
+
+$pagetext = "";
+
+if ($login && $admin_sign=="t") {
+  // 削除対象の確認
+  $sql = "SELECT * FROM users WHERE seqno=".$_GET["seqno"]." AND id='".$_GET["id"]."'";
+  $res = pg_query($conn,$sql);
+  $cnt = pg_num_rows($res);
+  if ($cnt>0) {
+    $row = pg_fetch_array($res, 0);  
+    $old_id = $row["id"];
+  } else {
+    $DMES[] = "ユーザー情報の確認に失敗しました";
+  }
+	
+	if (sizeof($DMES)==0) {
+    // 削除に伴う関連データ削除処理
+    $sql = "DELETE FROM tracking WHERE id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+
+    $sql = "DELETE FROM users_entry WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+
+    $sql = "DELETE FROM users_duty WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "DELETE FROM users_location WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+        	
+    $sql = "DELETE FROM mail WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+
+    $sql = "DELETE FROM events WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "DELETE FROM schedules WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "DELETE FROM rooms_reserve WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "DELETE FROM mail WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "DELETE FROM mail_res WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "DELETE FROM todos WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "DELETE FROM boards_res WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "DELETE FROM circulas WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "DELETE FROM circulas_res WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "DELETE FROM circulas_ret WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "DELETE FROM workflow WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "DELETE FROM workflow_res WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "DELETE FROM workflow_ret WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+
+    $sql = "DELETE FROM address_log WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+
+    $sql = "DELETE FROM boards_res WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+
+#    $sql = "DELETE FROM mail WHERE user_id='".$old_id."'";
+#    $res = pg_query($conn, $sql);
+#    $sql = "DELETE FROM mail_res WHERE user_id='".$old_id."'";
+#    $res = pg_query($conn, $sql);
+
+    // 削除に伴う関連データ消去処理(削除じゃないよ)
+    $sql = "UPDATE address SET create_user_id='' WHERE create_user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "UPDATE boards SET admin_id='' WHERE admin_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "UPDATE boards_post SET user_id='' WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "UPDATE rooms SET manage_id='' WHERE manage_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "UPDATE rooms_reserve SET update_user_id='' WHERE update_user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "UPDATE schedules SET create_user_id='' WHERE create_user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "UPDATE schedules SET update_user_id='' WHERE update_user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "UPDATE files SET user_id='' WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "UPDATE folders SET user_id='' WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    $sql = "UPDATE links SET user_id='' WHERE user_id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+
+		// 削除に伴う関連データ消去処理２(カンマ区切り系)
+		$table = "events";    $field = "sharelist";     remove_userid($table,$field,$old_id);
+    $table = "boards";    $field = "view_user_ids"; remove_userid($table,$field,$old_id);
+    $table = "folders";   $field = "view_user_ids"; remove_userid($table,$field,$old_id);
+    $table = "links";     $field = "view_user_ids"; remove_userid($table,$field,$old_id);
+    $table = "rooms";     $field = "view_user_ids"; remove_userid($table,$field,$old_id);
+		$table = "circulas";  $field = "user_id_to";    remove_userid($table,$field,$old_id);
+		$table = "flows";     $field = "user_ids";      remove_userid($table,$field,$old_id);
+		$table = "schedules"; $field = "sharelist";     remove_userid($table,$field,$old_id);
+		$table = "workflow";  $field = "flow_ids";      remove_userid($table,$field,$old_id);
+
+    // 削除処理
+    $sql = "DELETE FROM users WHERE seqno=".$_GET["seqno"]." AND id='".$old_id."'";
+    $res = pg_query($conn, $sql);
+    if ($res==false) {
+      $DMES[] = "ユーザー情報の削除に失敗しました";
+    }
+  }
+  // エラー処理
+  if (sizeof($DMES)>0) {
+		include "../../header.inc.php"; flush();
+		include "../menu.inc.php";
+
+    $pagetext .= "<BR><CENTER>";
+    $pagetext .= "<TABLE>";
+    $pagetext .= "<FORM ACTION=\"./edit.phtml\" METHOD=POST>\n";
+    $pagetext .= "<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"$p\">\n";
+    $pagetext .= "<INPUT TYPE=HIDDEN NAME=\"group\" VALUE=\"".$group."\">\n";
+    $pagetext .= "<TR><TD>";
+
+    $pagetext .= "<FONT COLOR=#FF0000>";
+    for ($i=0;$i<sizeof($DMES);$i++){
+      $pagetext .= $DMES[$i]."<BR>";
+    }
+
+    $pagetext .= "</TD></TR></TABLE>";
+    $pagetext .= "<BR>";
+    $pagetext .= "<INPUT TYPE=BUTTON VALUE=\"戻る\" ONCLICK=\"history.back()\" STYLE=\"width:80px\">\n";
+    $pagetext .= "</FORM>";
+    $pagetext .= "</CENTER>\n";
+
+	  include "../../detail.inc.php";
+	  include "../../footer.inc.php";
+  } else {
+    $returl = "./?group=".$group."&p=".$p;
+		Header("Location: ".$returl);
+  }
+}
+?>

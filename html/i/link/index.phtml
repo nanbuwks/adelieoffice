@@ -1,0 +1,130 @@
+<?php
+  include ("../../config.inc.php"); include ("../../lib.inc.php");
+  include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+  $link_path = "/";
+
+  $pagetitle = "リンク集 一覧";
+  include ("../header.inc.php");
+
+  // エラーチェック
+  if ($login==false) {
+    $MES[] = "先に、ログインしてください ⇒ <A HREF=\"/i/\">ログインページへ</A>";
+  } else {
+    if (trim($login_id) == "") {
+      $MES[] = "ユーザーIDが正しくありません";
+    } else {
+      $sql = "select * from users where id='".$login_id."'";
+      $txt.= "<!--";
+      $res = pg_query($conn, $sql);
+      if (pg_num_rows($res)<1) {
+        $MES[] = "ユーザーIDが正しくありません".$sql;
+      } else {
+        $row = pg_fetch_array($res,0);
+      }
+      $txt.= "-->";
+    }
+  }
+
+  if (sizeof($MES)>0) {
+    ## エラー時
+    $txt.= "<FONT COLOR=#FF0000>";
+    while (list($key,$val)=each($MES)) {
+      $txt.= $val."<BR>";
+    }
+    $txt.= "</FONT><hr size=\"0\">";
+  } else {
+    ## 正常時
+    $txt.= "リンク集&emojimagglass;";
+    $txt.= "<hr size=\"0\">";
+
+    $sql  = "SELECT * FROM links WHERE type='$agenttype' AND user_id='$login_id' AND keitaisign='t'";
+    $sql .= " ORDER BY";
+    $sql .= " modifystamp DESC,createstamp DESC";
+
+    $res = pg_query($conn,$sql);
+    $cnt = pg_num_rows($res);
+
+    ## 改ページシステム
+    $linkstr = "./$serial";
+    $rows = 9;
+    if ($p<1) {
+      $p = 1;
+    } else {
+      if ($rows*($p-1)>=$cnt) { $p = 1; }
+    }
+    $s_row = ($p-1) * $rows;
+    $e_row = $p * $rows - 1;
+    if ($e_row>$cnt-1) { $e_row = $cnt-1; }
+    if ($cnt-1>$e_row) { $nextpage = true; }
+    $allpages = floor(($cnt-1)/$rows)+1;
+    if ($allpages>1) {
+      $r = 0;
+      $s_p = $p - 4;
+      $e_p = $p + 4;
+      if ($s_p<1) {
+        $r = 1-$s_p;
+        $s_p = $s_p + $r;
+        $e_p = $e_p + $r;
+      } elseif ($e_p>$allpages) {
+        $r = $e_p - $allpages;
+        $s_p = $s_p - $r;
+        $e_p = $e_p - $r;
+      }
+      if ($s_p < 1) { $s_p = 1; }
+      if ($e_p > $allpages) { $e_p = $allpages; }
+      if ($p>1) {
+        $backlink = "";
+        $backlink.= "<DIV ALIGN=CENTER>";
+        $backlink.= "&lt;<A HREF=\"$linkstr&p=".($p-1)."\">前の".$rows."件</A>&gt;";
+        $backlink.= "</DIV>";
+      }
+      if ($nextpage) {
+        $nextlink = "";
+        $nextlink.= "<DIV ALIGN=CENTER>";
+        $nextlink.= "&lt;<A HREF=\"$linkstr&p=".($p+1)."\">次の".$rows."件</A>&gt;";
+        $nextlink.= "</DIV>";
+      }
+    }
+
+    ## 前ページリンク
+    if ($p>1) { $txt.= $backlink; }
+
+    ## 各行表示
+    if ($cnt==0) {
+      $txt.= "未登録";
+    } else {
+      $c = 0;
+      for ($i=$s_row;$i<=$e_row;$i++) {
+        $c++;
+        $row = pg_fetch_array($res,$i);
+        $title = mb_convert_kana($row["title"],"ak","EUC-JP");
+        $seqno = $row["seqno"];
+        $url   = $row["url"];
+
+        if (strlen($title)<=$charW*2*2-8) {
+          $stitle = $title;
+        } else {
+          $stitle = mb_strcut($title,0,$charW*2*2-9).".";
+        }
+        $txt.= "&emoji".$c.";";
+        $txt.= "<A HREF=\"$url\" $accesskey=$c>$stitle</A>";
+        $txt.= "&lt;<A HREF=\"./add/$serial&sn=$sn&s=$seqno&p=$p\">";
+        $txt.= "編集";
+        $txt.= "</A>&gt;";
+        $txt.= "<BR>";
+      }
+    }
+
+    ## 次ページリンク
+    if ($nextpage=="t") { $txt.= $nextlink; }
+
+    $txt.= "<hr size=\"0\">";
+    $txt.= "<DIV ALIGN=RIGHT>";
+    $txt.= "<A HREF=\"./add/$serial\" $accesskey=0>";
+    $txt.= "&emoji0;新規リンク</A>";
+    $txt.= "</DIV>";
+  }
+
+  include "../footer.inc.php";
+?>

@@ -1,0 +1,232 @@
+<?php
+  include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+  include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+  // header表示
+  $pagetitle = "住所録 個人情報";
+  include ("../../header.inc.php");
+
+  // エラーチェック
+  if ($login == false) {
+    $MES[] = "先に、ログインしてください ⇒ <A HREF=\"/i/\">ログインページへ</A>";
+  } else {
+    if (trim($login_id) == "") {
+      $MES[] = "ユーザーIDが正しくありません";
+    } else {
+      $sql = "select * from users where id='".$login_id."'";
+      $txt.= "<!--";
+      $res = pg_query($conn, $sql);
+      if (pg_num_rows($res) < 1) {
+        $MES[] = "ユーザーIDが正しくありません".$sql;
+      } else {
+        $row = pg_fetch_array($res,0);
+      }
+      $txt.= "-->";
+    }
+  }
+
+  if (sizeof($MES)==0 && $s != "") {
+    $sql = "SELECT * FROM address WHERE seqno=$s";
+    $res = pg_query($conn,$sql);
+    if (pg_num_rows($res)==0) {
+      $MES[] = "指定された情報は既に削除されています";
+    } else {
+      $row = pg_fetch_array($res,0);
+
+      $corp_name_org   = $row["corp_name"];
+      $corp_name       = mb_convert_kana($corp_name_org,"k");
+      $corp_kana_org   = $row["corp_kana"];
+      $corp_kana       = mb_convert_kana($corp_kana_org,"k");
+      $corp_email      = $row["corp_email"];
+      $corp_url        = $row["corp_url"];
+      $corp_zip        = $row["corp_zip"];
+      $corp_state      = $row["corp_state"];
+      $corp_city       = mb_convert_kana($row["corp_city"],"k");
+      $corp_street     = mb_convert_kana($row["corp_street"],"k");
+      $corp_build      = mb_convert_kana($row["corp_build"],"k");
+      $corp_tel        = $row["corp_tel"];
+      $corp_fax        = $row["corp_fax"];
+
+      $person_name_org = $row["person_name"];
+      $person_name     = mb_convert_kana($person_name_org,"k");
+      $person_kana     = mb_convert_kana($row["person_kana"],"k");
+      $person_sex      = $row["person_sex"];
+      $person_depa     = mb_convert_kana($row["person_depa"],"k");
+      $person_post     = mb_convert_kana($row["person_post"],"k");
+      $person_dialin   = $row["person_dialin"];
+      $person_email    = $row["person_email"];
+      $person_email2   = $row["person_email2"];
+      $person_birthday = $row["person_birthday"];
+      if (!empty($person_birthday)) {
+        $birthstamp = datetime2timestamp($person_birthday);
+        $person_birthday_Y = date("Y",$birthstamp);
+        $person_birthday_M = date("m",$birthstamp);
+        $person_birthday_D = date("d",$birthstamp);
+      }
+      $person_handy    = $row["person_handy"];
+      $person_zip      = $row["person_zip"];
+      $person_state    = $row["person_state"];
+      $person_city     = mb_convert_kana($row["person_city"],"k");
+      $person_street   = mb_convert_kana($row["person_street"],"k");
+      $person_build    = mb_convert_kana($row["person_build"],"k");
+      $person_tel      = $row["person_tel"];
+      $person_fax      = $row["person_fax"];
+
+      $kind_list       = $row["kind_list"];
+      $comment         = mb_convert_kana($row["comment"],"k");
+
+      $create_user_id  = $row["create_user_id"];
+      $createstamp     = $row["createstamp"];
+      $updatestamp     = $row["updatestamp"];
+    }
+  }
+
+  if (sizeof($MES)>0) {
+    $txt.= "<BR>";
+    $txt.= "<CENTER><DIV ALIGN=CENTER><FONT COLOR=#FF0000><B>";
+    // エラーメッセージ出力
+    while (list($key,$val)=each($MES)) {
+      $txt.= $val."<BR>";
+    }
+    $txt.= "</FONT></DIV></CENTER>";
+
+    $txt.= "<FORM ACTION=\"../\" METHOD=POST>";
+    $txt.= "<INPUT TYPE=HIDDEN name=ms value=\"".$ms."\">";
+    $txt.= "<INPUT TYPE=HIDDEN name=s value=\"".$s."\">";
+    $txt.= "<INPUT TYPE=SUBMIT value=戻る>";
+    $txt.= "</FORM>";
+  } else {
+    // 正常処理
+    $txt.= "<FORM ACTION=\"./upd_person.phtml\" METHOD=POST>";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=dummy VALUE=\"ShiftJISコードで記述されています\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=\"$ms\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=s VALUE=\"$s\">";
+
+    if ($corp_name != "") {
+      $txt.= "会社名<BR>&nbsp;<FONT COLOR=#666666>$corp_name</FONT><BR>";
+    }
+
+    $txt.= "氏名(漢字)<BR>";
+    if ($agenttype == "jsky") {
+      $txt.= "<TEXTAREA NAME=\"person_name\" ROWS=1 ".inputmode("hiragana").">".$person_name."</TEXTAREA>";
+      $txt.= "<BR>";
+    } else {
+      $txt.= "<INPUT TYPE=TEXT NAME=\"person_name\" VALUE=\"$person_name\" ".inputmode("hiragana")."><BR>";
+    }
+
+    $txt.= "氏名(カナヨミ)<BR>";
+    if ($agenttype == "jsky") {
+      $txt.= "<TEXTAREA NAME=\"person_kana\" ROWS=1 ".inputmode("katakana").">".$person_kana."</TEXTAREA>";
+      $txt.= "<BR>";
+    } else {
+      $txt.= "<INPUT TYPE=TEXT NAME=\"person_kana\" VALUE=\"".$person_kana."\" ".inputmode("katakana")."><BR>";
+    }
+
+    $txt.= "性別<BR>";
+    if ($person_sex == "man"){
+      $txt.= "<INPUT TYPE=RADIO NAME=\"person_sex\" VALUE=\"man\" CHECKED>男 ";
+      $txt.= "<INPUT TYPE=RADIO NAME=\"person_sex\" VALUE=\"woman\">女 ";
+      $txt.= "<INPUT TYPE=RADIO NAME=\"person_sex\" VALUE=\"\">未設定<BR>";
+    } elseif ($person_sex == "woman"){
+      $txt.= "<INPUT TYPE=RADIO NAME=\"person_sex\" VALUE=\"man\">男 ";
+      $txt.= "<INPUT TYPE=RADIO NAME=\"person_sex\" VALUE=\"woman\" CHECKED>女 ";
+      $txt.= "<INPUT TYPE=RADIO NAME=\"person_sex\" VALUE=\"\">未設定<BR>";
+    } else {
+      $txt.= "<INPUT TYPE=RADIO NAME=\"person_sex\" VALUE=\"man\">男 ";
+      $txt.= "<INPUT TYPE=RADIO NAME=\"person_sex\" VALUE=\"woman\">女 ";
+      $txt.= "<INPUT TYPE=RADIO NAME=\"person_sex\" VALUE=\"\" CHECKED>未設定<BR>";
+    }
+
+    $txt.= "所属部署<BR>";
+    if ($agenttype == "jsky") {
+      $txt.= "<TEXTAREA NAME=\"person_depa\" ROWS=1 ".inputmode("hiragana").">".$person_depa."</TEXTAREA>";
+      $txt.= "<BR>";
+    } else {
+      $txt.= "<INPUT TYPE=TEXT NAME=\"person_depa\" VALUE=\"".$person_depa."\" ".inputmode("hiragana")."><BR>";
+    }
+
+    $txt.= "肩書・役職<BR>";
+    if ($agenttype == "jsky") {
+      $txt.= "<TEXTAREA NAME=\"person_post\" ROWS=1 ".inputmode("hiragana").">".$person_post."</TEXTAREA>";
+      $txt.= "<BR>";
+    } else {
+      $txt.= "<INPUT TYPE=TEXT NAME=\"person_post\" VALUE=\"".$person_post."\" ".inputmode("hiragana")."><BR>";
+    }
+
+    $txt.= "内線<BR>";
+    $txt.= "<INPUT MAXLENGTH=20 NAME=\"person_dialin\" VALUE=\"$person_dialin\" ".inputmode("numeric")." ><BR>";
+
+    $txt.= "EMAIL<BR>";
+    if ($agenttype == "jsky") {
+      $txt.= "<TEXTAREA NAME=\"person_email\" ROWS=1 ".inputmode("alphabet").">".$person_email."</TEXTAREA>";
+      $txt.= "<BR>";
+    } else {
+      $txt.= "<INPUT TYPE=TEXT NAME=\"person_email\" VALUE=\"$person_email\" ".inputmode("alphabet")."><BR>";
+    }
+
+    $txt.= "携帯アドレス<BR>";
+    if ($agenttype == "jsky") {
+      $txt.= "<TEXTAREA NAME=\"person_email2\" ROWS=1 ".inputmode("alphabet").">".$person_email2."</TEXTAREA>";
+      $txt.= "<BR>";
+    } else {
+      $txt.= "<INPUT TYPE=TEXT NAME=\"person_email2\" VALUE=\"$person_email2\" ".inputmode("alphabet")."><BR>";
+    }
+
+    $txt.= "生年月日<BR>";
+    $txt.= "<SELECT NAME=\"person_birthday_Y\" STYLE=\"background-color:#EEEEEE\">";
+    $txt.= "<OPTION VALUE=\"\"";
+    if ($person_birthday_Y == 0) $txt.= " SELECTED";
+    $txt.= ">----";
+    $today = getdate();
+    $now_y = $today["year"];
+
+    $min_y = ($now_y-90);
+    if ($person_birthday_Y !=0 && $min_y > $person_birthday_Y) { $min_Y = $person_birthday_Y; }
+    for ($i=$min_y;$i<=$now_y;$i++) {
+      if ($person_birthday_Y == $i) {
+        $txt.= "<OPTION VALUE=".$i." SELECTED>".$i."";
+      } else {
+        $txt.= "<OPTION VALUE=".$i.">".$i."";
+      }
+    }
+    $txt.= "</SELECT>";
+    if ($char_w>16) { $txt.= "年"; } else { $txt.= "/"; }
+
+    $txt.= "<SELECT NAME=\"person_birthday_M\" STYLE=\"background-color:#EEEEEE\">";
+    $txt.= "<OPTION VALUE=\"\"";
+    if ($person_birthday_M == 0) $txt.= " SELECTED";
+    $txt.= ">--";
+    for ($i=1;$i<=12;$i++) {
+      if ($person_birthday_M == $i) {
+        $txt.= "<OPTION VALUE=".$i." SELECTED>".$i."";
+      } else {
+        $txt.= "<OPTION VALUE=".$i.">".$i."";
+      }
+    }
+    $txt.= "</SELECT>";
+   if ($char_w>16) { $txt.= "月"; } else { $txt.= "/"; }
+
+    $txt.= "<SELECT NAME=\"person_birthday_D\" STYLE=\"background-color:#EEEEEE\">";
+    $txt.= "<OPTION VALUE=\"\"";
+    if ($person_birthday_D == 0) $txt.= " SELECTED";
+    $txt.= ">--";
+    for ($i=1;$i<=31;$i++) {
+      if ($person_birthday_D == $i) {
+        $txt.= "<OPTION VALUE=".$i." SELECTED>".$i."";
+      } else {
+        $txt.= "<OPTION VALUE=".$i.">".$i."";
+      }
+    }
+    $txt.= "</SELECT>";
+    if ($char_w>16) { $txt.= "日"; }
+    $txt.= "<BR>";
+
+    $txt.= "携帯電話<BR>";
+    $txt.= "<INPUT TYPE=TEXT NAME=\"person_handy\" MAXLENGTH=25 VALUE=\"$person_handy\" ".inputmode("numeric")."><BR>";
+
+    $txt.= "<BR><DIV ALIGN=CENTER><INPUT TYPE=SUBMIT VALUE=\"更新\"></DIV>";
+    $txt.= "</FORM>";
+  }
+
+	include ("../../footer.inc.php");
+?>

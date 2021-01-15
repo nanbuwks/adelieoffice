@@ -1,0 +1,444 @@
+<?php
+  include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+  include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+  include ("../../header.inc.php");
+
+  // エラー判定
+  if($login) {
+    // 前処理
+    if(!empty($note)) {
+      $note = textsafe(sjis2euc(remove_emoji($note)));
+#      $note = mb_convert_kana($note,"aK","EUC-JP");
+    }
+    if(!empty($member_count)) {
+      $member_count = textsafe(sjis2euc(remove_emoji($member_count)));
+      $member_count = mb_convert_kana($member_count,"ak","EUC-JP");
+    }
+
+    if (!empty($seqno)) {
+      $type = "edit";
+      if (!empty($errorthrou)) { $errorthrou = "false"; }
+    } else {
+      $type = "add";
+    }
+
+    // エラーチェック
+    if (empty($room_id)){
+      $MES[] = "施設を選択してください";
+    } else {
+      // 施設の利用可能チェック
+      $use = false;
+
+      $row_room = get_row("rooms","*","id='$room_id'");
+      $manage_id = $row_room["manage_id"];
+      $roomname  = $row_room["name"];
+      $group_ids = $row_room["view_group_ids"];
+      $user_ids  = $row_room["view_user_ids"];
+
+#      if ($admin_sign=="t" || $manage_id==$login_id || ($group_ids=="" && $user_ids=="")) {
+      if ($manage_id==$login_id || ($group_ids=="" && $user_ids=="")) {
+        // 管理者 or 施設管理者 or 制約のない施設
+        $use = true;
+      } else {
+        if ($group_ids!="") {
+          $view_group_id = preg_split(",",$group_ids);
+          if (sizeof($view_group_id)>0) while (list($seq,$id)=each($view_group_id)) {
+            $chkcnt = get_count("users_entry","user_id='$login_id' AND group_id='$id'");
+            if ($chkcnt>0) { $use = true; break; }
+          }
+        }
+        if ($user_ids!="") {
+          $view_user_id = preg_split(",",$user_ids);
+          if (sizeof($view_user_id)>0) while (list($seq,$id)=each($view_user_id)) {
+            if ($login_id==$id) { $use = true; break; }
+          }
+        }
+      }
+      if (!$use) {
+        $MES[] = "指定された施設は制限されているため予約を行うことはできません";
+      }
+    }
+
+    if (empty($from_y) || $from_y=="" || !is_numeric($from_y)){
+      $MES[] = "日付を正しく入力して下さい";
+    } elseif (empty($from_m) || $from_m=="" || !is_numeric($from_m)){
+      $MES[] = "日付を正しく入力して下さい";
+    } elseif (empty($from_d) ||  $from_d=="" || !is_numeric($from_d)){
+      $MES[] = "日付を正しく入力して下さい";
+    }
+    if (sizeof($MES)==0) {
+      if (checkdate($from_m,$from_d,$from_y)==false) {
+        $MES[] = "日付の指定が正しくありません";
+      } elseif ($from_y<date("Y")-10 || $from_y>date("Y")+10) {
+        $MES[] = "日付の指定が正しくありません";
+      }
+    }
+
+    if ($from_hour*60+$from_minuts > $to_hour*60+$to_minuts){
+      $MES[] = "時刻の範囲が正しくありません";
+    }
+
+    if (sizeof($MES)==0) {
+      $from_date = $from_y."-".$from_m."-".$from_d;
+      $from_datestamp = date2timestamp($from_date);
+    }
+    if ($from_hour==-1 or $from_minuts==-1) {
+      $MES[] = "開始時刻が正しくありません";
+      $from_time = "";
+    } else {
+      $from_time = $from_date." ".$from_hour.":".$from_minuts.":00";
+      $from_timestamp = datetime2timestamp($from_time);
+    }
+    if ($to_hour==-1 or $to_minuts==-1) {
+      $MES[] = "終了時刻が正しくありません";
+      $to_time = "";
+    } else {
+      $to_time = $from_date." ".$to_hour.":".$to_minuts.":00";
+      $to_timestamp = datetime2timestamp($to_time);
+    }
+
+    if (empty($member_count) || $member_count=="" || !is_numeric($member_count)){
+      $MES[] = "利用人数を正しく入力して下さい";
+    }
+
+    // ブッキングチェック用
+    if (sizeof($MES)==0) {
+      $check_from_time = $from_time;
+      $check_to_time = date("Y-m-d H:i",($to_timestamp-1)).":00";
+
+      // 施設のブッキングチェック
+      if ($room_id!="") {
+        $sql  = "SELECT * FROM rooms_reserve WHERE (";
+        $sql .= "(timefrom >'".$check_from_time."' and timeto<'".$check_to_time."') or ";
+        $sql .= "(timefrom >'".$check_from_time."' and timefrom<'".$check_to_time."') or ";
+        $sql .= "(timeto >'".$check_from_time."' and timeto<'".$check_to_time."') or ";
+        $sql .= "(timefrom <='".$check_from_time."' and timeto>='".$check_to_time."') ";
+        $sql .= ") and room_id='".$room_id."' and \"date\"='".$from_date."'";
+        if ($seqno!="") {
+          $sql .= " and seqno<>".$seqno." ";
+        }
+        $res_check = pg_query($conn,$sql);
+        if (pg_num_rows($res_check)>0) {
+          $sql = "SELECT * FROM rooms where id='".$room_id."'";
+          $res_room = pg_query($conn,$sql);
+          if (pg_num_rows($res_room)>0) {
+            $row_room = pg_fetch_array($res_room, 0);
+            $roomname = $row_room["name"];
+          } else {
+            $roomname = "";
+          }
+
+          $MES[] = "その日時には既に他予約が登録されています";
+        }
+      }
+    }
+
+    $STR = $note;
+    $LEN = strlen($STR);
+    if ($LEN == 0) {
+      $MES[] = "内容が入力されていません";
+    }
+  }
+
+  // DB更新
+  if (sizeof($MES)==0 and (sizeof($WMES)==0 or $errorthrou=="true")) {
+    if ($type=="add"){
+      // 新規登録：スケジュール
+      while (true) { // マルチユーザー対応
+        pg_query($conn, "BEGIN");
+
+        // seqno採番
+        $sql = "SELECT seqno FROM rooms_reserve ORDER BY seqno desc;";
+        $res = pg_query($conn, $sql);
+        if (pg_num_rows($res)==0) {
+          $seqno = 1;
+        } else {
+          $row = pg_fetch_array($res, 0);
+          $seqno = $row["seqno"]+1;
+        }
+        pg_free_result($res);
+
+        // 新規登録
+        $sql  = "INSERT INTO rooms_reserve (";
+        $sql .= "seqno,room_id,user_id,date,timefrom,timeto,note,member_count,createstamp";
+        $sql .= " ) VALUES (";
+        $sql .= "'".$seqno."',";
+        $sql .= "'".$room_id."',";
+        $sql .= "'".$user_id."',";
+        $sql .= "'".$from_date."',";
+        $sql .= "'".$from_time."',";
+        $sql .= "'".$to_time."',";
+        $sql .= "'".$note."',";
+        $sql .=     $member_count.",";
+        $sql .= "'now'";
+        $sql .= ")";
+        $res = pg_query($conn,$sql);
+
+        if ($res==false) {
+          $errcount++;
+          if ($errcount>10) { //再試行回数 10回
+            $MES[] = "登録に失敗";
+            break;
+          }
+        } else {
+          $org_seqno = $seqno;
+          break;
+        }
+      }
+
+      if (sizeof($MES)==0) {
+        pg_query($conn, "COMMIT");
+      } else {
+        pg_query($conn, "ROLLBACK");
+      }
+    } else {
+      // 更新処理
+
+			## 前回データの確認
+			$sql = "SELECT * FROM rooms_reserve WHERE seqno=".$seqno;
+			$res = pg_query($conn,$sql);
+			if (pg_num_rows($res)<1) {
+				$MES[] = "確認に失敗";
+			} else {
+				## 更新
+				$sql = "UPDATE rooms_reserve SET ";
+				$sql.= "room_id='".$room_id."',";
+				$sql.= "user_id='".$user_id."',";
+				$sql.= "date='".$from_date."',";
+				$sql.= "timefrom='".$from_time."',";
+				$sql.= "timeto='".$to_time."',";
+				$sql.= "note='".$note."',";
+				$sql.= "member_count='".$member_count."',";
+				$sql.= "updatestamp='now'";
+				$sql.= " where seqno=".$seqno;
+				$res = pg_query($conn,$sql);
+				if(!$res || pg_affected_rows($res)==0){
+					$MES[] = "更新に失敗しました";
+				}
+			}
+
+      // 管理者へメールを送る
+      if (sizeof($MES)==0) {
+        $room_name = get_first("rooms","name","id='$room_id'","");
+        $mailbody  = "施設:".$room_name."\n";
+        $user_ryaku = get_first("users","name_ryaku","id='$login_id'","");
+        if ($seqno == ""){
+          $mailbody .= "登録者:$user_ryaku\n";
+        } else {
+          $mailbody .= "更新者:$user_ryaku\n";
+        }
+        $mailbody .= "日時:".date("Y/m/d",$from_datestamp);
+        $mailbody .= " ".date("H:i",$from_timestamp);
+        $mailbody .= "〜";
+        $mailbody .= date("H:i",$to_timestamp);
+        $mailbody .= "\n";
+        $mailbody .= "人数:".$member_count."\n";
+        $mailbody .= "------------------\n";
+        $mailbody .= mail_textsafe($note);
+
+        // 表題の生成
+        $mailsubject  = "予約:".date("m/d");
+        $mailsubject .= "(";
+        $mailsubject .= $wname[date("w")];
+        $mailsubject .= ") ";
+        $mailsubject .= date("H:i");
+
+        // 発信者アドレスのセット
+        $mailfrom = trim(get_first("users","email_sub","id='".$login_id."'",""));
+        if ($mailfrom == "") {
+          $mailfrom = trim(get_first("users","email","id='".$login_id."'",""));
+        }
+
+        // 受信者アドレスのセット
+        $mailto = trim(get_first("users","email_sub","id='".$manage_id."'",""));
+        if ($mailto == "") {
+          $mailto = trim(get_first("users","email","id='".$manage_id."'",""));
+        }
+
+        if ($mailfrom != "" && $mailto != "") {
+          // ヘッダの生成
+          $mailheader  = "MIME-Version: 1.0\n";
+          $mailheader .= "Content-Type: text/plain; charset=iso-2022-jp\n";
+          $mailheader .= "Content-Transfer-Encoding: 7bit\n";
+          $mailheader .= "From: ".$mailfrom."\n";
+          $mailheader .= "Return-Path: ".$mailfrom."\n";
+          $mailheader .= "X-Mailer: AdelieOffice SendMail";
+
+          // ワンタイムパースワード確認
+          $onepass = trim(get_first("users","onetime_passwd","id='".$manage_id."'",""));
+          if (trim($onepass)=="") {
+            $onepass = make_serial(12);
+            $sql_update = "UPDATE users SET onetime_passwd='".$onepass."' WHERE id='".$manage_id."'";
+            $res_update = pg_query($conn,$sql_update);
+          }
+
+          // キャリア毎のメール準備
+          if (preg_match("@docomo\.ne\.jp$",$mailto)) {
+            # Docomo 500字(-90字[リンク分])まで
+            $maxlen = 500-90;
+          } elseif (preg_match("@jp\-.\.ne\.jp$",$mailto) || preg_match("@..\.vodafone\.ne\.jp$",$mailto)) {
+            # J-SKY 384字(-90字[リンク分])まで
+            $maxlen = 384-90;
+          } elseif (preg_match("@ezweb\.ne\.jp$",$mailto) || preg_match("@.*\.ezweb\.ne\.jp$",$mailto) || preg_match("@ez.*\.ido\.ne\.jp$",$mailto)) {
+            # EZWeb 2000字(-90字[リンク分])まで
+            $maxlen = 2000-90;
+          } else {
+            $maxlen = 10000;
+          }
+          $mailbody = mb_strcut($mailbody,0,$maxlen);
+
+          $mailbody .= "\n--\n";
+          if (preg_match("@docomo\.ne\.jp$",$mailto) || preg_match("@jp\-.\.ne\.jp$",$mailto)  || preg_match("@..\.vodafone\.ne\.jp$",$mailto) || preg_match("@ezweb\.ne\.jp$",$mailto) || preg_match("@.*\.ezweb\.ne\.jp$",$mailto) || preg_match("@ez.*\.ido\.ne\.jp$",$mailto)) { // Docomo or J-PHONE or EZWeb
+            $mailbody .= "予約の確認⇒"."http://".$domain."/i/room/add/$serial&sn=".$onepass."&rid=".$room_id."&s=".$seqno;
+          } else {
+            $mailbody .= "予約の確認⇒"."https://".$domain."/room/add/?mode=dlogin&sn=".$onepass."&s=".$seqno;
+          }
+          // メール送信
+          mail ($mailto,
+           mb_encode_mimeheader(euc2jis($mailsubject),"ISO-2022-JP"),
+           euc2jis($mailbody),
+           euc2jis($mailheader));
+        }
+      }
+
+    }
+  }
+
+  // エラーメッセージ出力
+  if (sizeof($MES)>0) {
+    $pagetitle = "施設予約 登録";
+    include "../../header.inc.php";
+    if (sizeof($MES)>0) {
+      $txt.= "<FONT COLOR=#FF0000>";
+      while (list($key,$val)=each($MES)) {
+        $txt.= "".$val."<BR>";
+      }
+      $txt.= "</FONT><BR>";
+    }
+    if (sizeof($WMES)>0) {
+      $txt.= "<FONT COLOR=#FF0066>";
+      while (list($key,$val)=each($WMES)) {
+        $txt.= "".$val."<BR>";
+      }
+      $txt.= "</FONT><BR>";
+    }
+
+    $txt.= "<FORM ACTION=\"./\" METHOD=POST>";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"back\" VALUE=\"t\">";
+    if ($type=="edit") {
+      $txt.= "<INPUT TYPE=HIDDEN NAME=\"s\" VALUE=\"$seqno\">";
+    }
+    if (!empty($room_id))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"room_id\" VALUE=\"$room_id\">"; }
+    if (!empty($user_id))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"user_id\" VALUE=\"$login_id\">"; }
+    if (!empty($rid))         { $txt.= "<INPUT TYPE=HIDDEN NAME=\"rid\" VALUE=\"$rid\">"; }
+    if (!empty($r))           { $txt.= "<INPUT TYPE=HIDDEN NAME=\"r\" VALUE=\"$r\">"; }
+    if (!empty($p))           { $txt.= "<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"$p\">"; }
+    if (!empty($y))           { $txt.= "<INPUT TYPE=HIDDEN NAME=\"y\" VALUE=\"$y\">"; }
+    if (!empty($m))           { $txt.= "<INPUT TYPE=HIDDEN NAME=\"m\" VALUE=\"$m\">"; }
+    if (!empty($d))           { $txt.= "<INPUT TYPE=HIDDEN NAME=\"d\" VALUE=\"$d\">"; }
+    if (!empty($from_y))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"from_y\" VALUE=\"$from_y\">"; }
+    if (!empty($from_m))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"from_m\" VALUE=\"$from_m\">"; }
+    if (!empty($from_d))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"from_d\" VALUE=\"$from_d\">"; }
+    if (!empty($from_hour))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"from_hour\" VALUE=\"$from_hour\">"; }
+    if (!empty($from_minuts)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"from_minuts\" VALUE=\"$from_minuts\">"; }
+    if (!empty($to_hour))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"to_hour\" VALUE=\"$to_hour\">"; }
+    if (!empty($to_minuts))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"to_minuts\" VALUE=\"$to_minuts\">"; }
+    if (!empty($note))        { $txt.= "<INPUT TYPE=HIDDEN NAME=\"note\" VALUE=\"$note\">"; }
+    if (!empty($member_count)){ $txt.= "<INPUT TYPE=HIDDEN NAME=\"member_count\" VALUE=\"$member_count\">"; }
+
+    $txt.= "<DIV ALIGN=CENTER><INPUT TYPE=SUBMIT VALUE=\"戻る\"></DIV>";
+    $txt.= "</FORM><BR>";
+  }
+
+  // ワーニングメッセージ出力
+  if (sizeof($MES)==0 && sizeof($WMES)>0 && $errorthrou!="true") {
+    $pagetitle = "施設予約 登録";
+    $txt.= "<FONT COLOR=#FF0066>";
+    while (list($key,$val)=each($WMES)) {
+      $txt.= "".$val."<br>";
+    }
+    $txt.= "</FONT><BR>";
+
+    $txt.= "<FORM ACTION=\"./\" METHOD=POST>";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"back\" VALUE=\"t\">";
+    if ($type=="edit") {
+      $txt.= "<INPUT TYPE=HIDDEN NAME=\"s\" VALUE=\"$seqno\">";
+    }
+    if (!empty($room_id))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"room_id\" VALUE=\"$room_id\">"; }
+    if (!empty($user_id))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"user_id\" VALUE=\"$login_id\">"; }
+    if (!empty($rid))         { $txt.= "<INPUT TYPE=HIDDEN NAME=\"rid\" VALUE=\"$rid\">"; }
+    if (!empty($r))           { $txt.= "<INPUT TYPE=HIDDEN NAME=\"r\" VALUE=\"$r\">"; }
+    if (!empty($p))           { $txt.= "<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"$p\">"; }
+    if (!empty($y))           { $txt.= "<INPUT TYPE=HIDDEN NAME=\"y\" VALUE=\"$y\">"; }
+    if (!empty($m))           { $txt.= "<INPUT TYPE=HIDDEN NAME=\"m\" VALUE=\"$m\">"; }
+    if (!empty($d))           { $txt.= "<INPUT TYPE=HIDDEN NAME=\"d\" VALUE=\"$d\">"; }
+    if (!empty($from_y))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"from_y\" VALUE=\"$from_y\">"; }
+    if (!empty($from_m))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"from_m\" VALUE=\"$from_m\">"; }
+    if (!empty($from_d))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"from_d\" VALUE=\"$from_d\">"; }
+    if (!empty($from_hour))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"from_hour\" VALUE=\"$from_hour\">"; }
+    if (!empty($from_minuts)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"from_minuts\" VALUE=\"$from_minuts\">"; }
+    if (!empty($to_hour))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"to_hour\" VALUE=\"$to_hour\">"; }
+    if (!empty($to_minuts))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"to_minuts\" VALUE=\"$to_minuts\">"; }
+    if (!empty($note))        { $txt.= "<INPUT TYPE=HIDDEN NAME=\"note\" VALUE=\"$note\">"; }
+    if (!empty($member_count)){ $txt.= "<INPUT TYPE=HIDDEN NAME=\"member_count\" VALUE=\"$member_count\">"; }
+
+    $txt.= "<DIV ALIGN=CENTER><INPUT TYPE=SUBMIT VALUE=\"戻る\"></DIV>";
+    $txt.= "</FORM>";
+
+    $txt.= "<FORM ACTION=\"./add.phtml\" METHOD=\"POST\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+    $txt.= "<INPUT TYPE=\"HIDDEN\" NAME=\"errorthrou\" VALUE=\"true\">";
+    if ($type=="edit") {
+      $txt.= "<INPUT TYPE=\"HIDDEN\" NAME=\"seqno\" VALUE=\"$seqno\">";
+    }
+    if (!empty($room_id))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"room_id\" VALUE=\"$room_id\">"; }
+    if (!empty($user_id))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"user_id\" VALUE=\"$login_id\">"; }
+    if (!empty($rid))         { $txt.= "<INPUT TYPE=HIDDEN NAME=\"rid\" VALUE=\"$rid\">"; }
+    if (!empty($r))           { $txt.= "<INPUT TYPE=HIDDEN NAME=\"r\" VALUE=\"$r\">"; }
+    if (!empty($p))           { $txt.= "<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"$p\">"; }
+    if (!empty($y))           { $txt.= "<INPUT TYPE=HIDDEN NAME=\"y\" VALUE=\"$y\">"; }
+    if (!empty($m))           { $txt.= "<INPUT TYPE=HIDDEN NAME=\"m\" VALUE=\"$m\">"; }
+    if (!empty($d))           { $txt.= "<INPUT TYPE=HIDDEN NAME=\"d\" VALUE=\"$d\">"; }
+    if (!empty($from_y))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"from_y\" VALUE=\"$from_y\">"; }
+    if (!empty($from_m))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"from_m\" VALUE=\"$from_m\">"; }
+    if (!empty($from_d))      { $txt.= "<INPUT TYPE=HIDDEN NAME=\"from_d\" VALUE=\"$from_d\">"; }
+    if (!empty($from_hour))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"from_hour\" VALUE=\"$from_hour\">"; }
+    if (!empty($from_minuts)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"from_minuts\" VALUE=\"$from_minuts\">"; }
+    if (!empty($to_hour))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"to_hour\" VALUE=\"$to_hour\">"; }
+    if (!empty($to_minuts))   { $txt.= "<INPUT TYPE=HIDDEN NAME=\"to_minuts\" VALUE=\"$to_minuts\">"; }
+    if (!empty($note))        { $txt.= "<INPUT TYPE=HIDDEN NAME=\"note\" VALUE=\"$note\">"; }
+    if (!empty($member_count)){ $txt.= "<INPUT TYPE=HIDDEN NAME=\"member_count\" VALUE=\"$member_count\">"; }
+
+    $txt.= "<DIV ALIGN=CENTER>";
+    if ($type=="edit") {
+      $txt.= "<INPUT TYPE=SUBMIT VALUE=\"更新\">";
+    } else {
+      $txt.= "<INPUT TYPE=submit VALUE=\"登録\">";
+    }
+    $txt.= "</DIV>";
+    $txt.= "</FORM>";
+  }
+
+  if (sizeof($MES)==0 && (sizeof($WMES)==0 || $errorthrou=="true")) {
+    // 正常時
+    if ($p=="daily") {
+      $txt.= "<FORM ACTION=\"../daily.phtml\" METHOD=POST>";
+    } else {
+      $txt.= "<FORM ACTION=\"../\" METHOD=POST>";
+    }
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"rid\" VALUE=\"$rid\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"room_id\" VALUE=\"$room_id\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"y\" VALUE=\"$y\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"m\" VALUE=\"$m\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"d\" VALUE=\"$d\">";
+    $txt.= "<DIV ALIGN=CENTER><BR>";
+    $txt.= "&emojibuild;更新完了<BR><BR>";
+    $txt.= "<INPUT TYPE=SUBMIT VALUE=\"戻る\">";
+    $txt.= "</DIV>";
+    $txt.= "</FORM><BR>";
+  }
+  include "../../footer.inc.php";
+?>

@@ -1,0 +1,89 @@
+<?php
+  // 入力値準備
+  include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+  include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+  $pagetitle = "BBS投稿 ";
+  include ("../../header.inc.php");
+
+  if (empty($n)) $n = 1;
+
+  if ($login) {
+    if (!empty($_REQUEST["subject"])) $subject = sjis2euc($_REQUEST["subject"]);
+    if (!empty($_REQUEST["body"]))    $body    = sjis2euc($_REQUEST["body"]);
+
+    // エラーチェック
+    if (!empty($r) && is_numeric($r)) {
+      $sql = "SELECT * FROM boards_post WHERE board_id='$bid' AND seqno=$r";
+      $res = pg_query($conn,$sql);
+      $cnt = pg_num_rows($res);
+      if ($cnt==0) {
+        $MES[] = "指定された投稿は既に削除されています";
+      } else {
+        $row = pg_fetch_array($res,0);
+        if (empty($subject))  $subject = "Re:".preg_replace("/Re:/i","",$row["subject"]);
+        if (empty($body)) {
+          $w_body  = mb_convert_kana($row["body"],"ak");
+          $w_body  = preg_replace("/\x0D\x0A|\x0D|\x0A|\r\n|<BR>/","\n",$w_body);//改行カット
+          $w_bodys = preg_split("\n",$w_body);
+          while(list($seq,$val)=each($w_bodys)) {
+            $bodys[] = "> ".$val;
+          }
+          $c = 0;
+          while(list($seq,$val)=each($bodys)) {
+            $c = $c + strlen($val);
+            if ($c<1024) {
+              $body .= $val."";
+            } else {
+              break;
+            }
+          }
+        }
+      }
+    }
+    if (sizeof($MES)>0) {
+      // エラー時
+      $txt.= "<font color=#FF0000>";
+      while (list($key,$val)=each($MES)) {
+        $txt.= $val."<br>";
+      }
+      $txt.= "</font>";
+    } else {
+      // 投稿ページの表示
+      $txt.= "<FORM ACTION=\"./regist.phtml\" METHOD=POST>";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=$ms>";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=bid VALUE=$bid>";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=p VALUE=$p>";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=q VALUE=$q>";
+      if (!empty($r) && is_numeric($r)) {
+        $txt.= "<INPUT TYPE=HIDDEN NAME=r VALUE=$r>";
+      }
+
+      $txt.= "表題:<BR>";
+      $txt.= "<TEXTAREA NAME=subject ROWS=1 ";
+      echo_mode("hiragana");
+      $txt.= ">".$subject."</TEXTAREA>";
+#      $txt.= "<BR>";
+
+      $t_height = $char_h-5;
+      if ($t_height<3) $t_height=3;
+      $txt.= "本文:<BR>";
+      $txt.= "<TEXTAREA NAME=body ROWS=$t_height ";
+      echo_mode("hiragana");
+      $txt.= ">".$body."</TEXTAREA>";
+      $txt.= "返信通知:<BR>";
+      if ($replysign=="t") {
+        $txt.= "<INPUT TYPE=RADIO NAME=\"replysign\" VALUE=\"t\" CHECKED><FONT COLOR=#3333FF>あり</FONT>";
+        $txt.= "<INPUT TYPE=RADIO NAME=\"replysign\" VALUE=\"f\"><FONT COLOR=#FF3333>なし</FONT><BR>";
+      } else {
+        $txt.= "<INPUT TYPE=RADIO NAME=\"replysign\" VALUE=\"t\"><FONT COLOR=#3333FF>あり</FONT>";
+        $txt.= "<INPUT TYPE=RADIO NAME=\"replysign\" VALUE=\"f\" CHECKED><FONT COLOR=#FF3333>なし</FONT><BR>";
+      }
+      $txt.= "<CENTER>";
+      $txt.= "<INPUT TYPE=SUBMIT VALUE=\"投稿\">";
+      $txt.= "</CENTER>";
+      $txt.= "</FORM>";
+    }
+  }
+  include ("../../footer.inc.php");
+?>

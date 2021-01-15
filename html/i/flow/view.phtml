@@ -1,0 +1,185 @@
+<?php
+  include ("../../config.inc.php"); include ("../../lib.inc.php");
+  include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+  $pagetitle = "ワークフローの表示";
+  include ("../header.inc.php");
+
+  if (empty($n)) $n = 1;
+
+  if ($login) {
+    // エラーチェック
+    if(empty($s) || !is_numeric($s)) {
+      $MES[] = "正しくない操作です";
+    }
+    if (sizeof($MES)==0) {
+      $sql = "SELECT * FROM workflow WHERE (user_id='$login_id' or flow_ids~*'(^|,)$login_id(,|$)') AND seqno=$s";
+      $res = pg_query($conn,$sql);
+      $cnt = pg_num_rows($res);
+      if($cnt==0) {
+        $MES[] = "指定された情報は既に削除されています";
+      } else {
+        $row = pg_fetch_array($res,0);
+        $stamp   = datetime2timestamp($row["createstamp"]);
+        $user_id = $row["user_id"];
+        $user_id_to = $row["user_id_to"];
+
+        $flow_ids = $row["flow_ids"];
+        $flow_pat = $row["flow_pat"];
+
+        $subject = mb_convert_kana($row["subject"],"ak");
+        if ($row["retry_sign"]=="t") {
+          $subject .= "(再)";
+        }
+        $body1   = str_wiki(mb_convert_kana($row["body1"],"ak"));
+        $body2   = mb_convert_kana($row["body2"],"ak");
+        $body3   = mb_convert_kana($row["body3"],"ak");
+        $body4   = str_wiki(mb_convert_kana($row["body4"],"ak"));
+        $body5   = mb_convert_kana($row["body5"],"ak");
+        $result_sign = $row["result_sign"];
+        $retry_sign  = $row["retry_sign"];
+      }
+    }
+
+    if (sizeof($MES)==0) {
+      // 既読チェック処理
+      if (get_count("workflow_res","seqno=$s AND user_id='$login_id'")==0) {
+        $sql  = "INSERT INTO workflow_res (seqno,user_id,createstamp) VALUES ";
+        $sql .= "($s,'$login_id','now()')";
+      } else {
+        $sql  = "UPDATE workflow_res SET createstamp='now()' ";
+        $sql .= "WHERE seqno=$s AND user_id='$login_id'";
+      }
+      pg_query($conn,$sql);
+    }
+
+    if (sizeof($MES) > 0) {
+      // エラー表示
+      $txt.= "<FONT COLOR=#FF0000>";
+      for ($i=0;$i<sizeof($MES);$i++) {
+        $txt.= $MES[$i]."<br>\n";
+      }
+      $txt.= "</FONT>";
+    } else {
+      // 表示
+      $txt.= "作成:";
+      $txt.= date("m/d H:i",$stamp);
+      $txt.= "<BR>\n";
+
+      $txt.= "立案:";
+      $sql_user = "SELECT * FROM users WHERE id='".$user_id."'";
+      $res_user = pg_exec($conn,$sql_user);
+      $cnt_user = pg_num_rows($res_user);
+      if ($cnt_user==0) {
+        $txt.= "不明";
+      } else {
+        $row_user = pg_fetch_array($res_user,0);
+        $username = $row_user["name_ryaku"];
+        if (trim($username)=="") $username = $row_user["name"];
+
+        $usermail = $row_user["email_sub"];
+        if (trim($usermail)=="") $usermail = $row_user["email"];
+
+        $txt.= "<A HREF=\"../mem/detail.phtml?ms=$ms&sn=$sn&id=".$user_id."\">";
+        $txt.= $username;
+        $txt.= "</A>";
+
+        if (trim($row_user["email_sub"])!="") {
+          $txt.= "<A HREF=\"mailto:".$row_user["email_sub"]."\">&emojimobilephone;</A>";
+        }
+        if (trim($row_user["email"])!="") {
+          $txt.= "<A HREF=\"mailto:".$row_user["email"]."\">&emojipc;</A>";
+        }
+      }
+      $txt.= "<BR>\n";
+
+      $txt.= "件名:";
+      $txt.= $subject;
+      $txt.= "<BR>\n";
+
+      $txt.= "状況:";
+      if ($type=="fromnot" || $type=="fromhas") {
+        // 送りデータ時
+        if ($result_sign=="t") {
+          $sql_res = "SELECT recognize_sign FROM workflow_ret WHERE refno=$s ORDER BY seqno DESC";
+          $res_res = pg_query($conn, $sql_res);
+          $cnt_res = pg_num_rows($res_res);
+          if ($cnt_res==0) {
+            $txt.= "決裁済";
+          } else {
+            $row_res = pg_fetch_array($res_res,0);
+            if ($row_res["recognize_sign"]=="t") {
+              $txt.= "<FONT COLOR=#FF0000>承認</FONT>";
+            } else {
+              $txt.= "<FONT COLOR=#000000>否認</FONT>";
+            }
+          }
+        } elseif ($result_sign=="f") {
+          $txt.= "<FONT COLOR=#000000>否認</FONT>";
+        } else {
+          $txt.= "<FONT COLOR=#3333FF>決裁中</FONT>";
+        }
+      } else {
+        $status = get_first("t_workflow","status","session_id='$sid' AND seqno=$s",0);
+        if ($status=="1") {
+          $txt.= "<FONT COLOR=#3333FF>未承認</FONT>";
+        } elseif ($status=="2") {
+          $txt.= "<FONT COLOR=#FF3333>承認済</FONT>";
+        } elseif ($status=="3") {
+          $txt.= "<FONT COLOR=#333333>否認済</FONT>";
+        } else {
+          $txt.= "-";
+        }
+      }
+      $txt.= "=&gt;<A HREF=\"./result.phtml?ms=$ms&sn=$sn&p=$p&&type=$type&s=$s\">状況</A>";
+      $txt.= "<BR>\n";
+
+      $txt.= "<hr size=\"0\">\n";
+      // 本文の処理
+      $body = "";
+      $body .= "理由:".preg_replace("/\x0D\x0A|\x0D|\x0A|\r\n|<BR>/","<BR>",$body1)."\n";
+      if (trim($body3)!="") {
+        $body .= "取引先:".preg_replace("/\x0D\x0A|\x0D|\x0A|\r\n|<BR>/","<BR>",$body2)."\n";
+      }
+      if (trim($body3)!="") {
+        $body .= "金額:".number_format(preg_replace("/\x0D\x0A|\x0D|\x0A|\r\n|<BR>/","<BR>",$body3))."円\n";
+      }
+      if (trim($body4)!="") {
+        $body .= "コメント:".preg_replace("/\x0D\x0A|\x0D|\x0A|\r\n|<BR>/","<BR>",$body4)."\n";
+      }
+      if (trim($body5)!="") {
+        $body .= ":".preg_replace("/\x0D\x0A|\x0D|\x0A|\r\n|<BR>/","<BR>",$body5)."\n";
+      }
+      // ページに分割
+      $c=0;
+      while(true) {
+        $c++;
+        if ($c==1) {
+          $maxlen = 1350-3;
+        } else {
+          $maxlen = 1700-3;
+        }
+        $rowtext = mb_strcut($body,0,$maxlen,"EUC-JP");
+        $bodys[] = $rowtext;
+        $body = str_replace($rowtext,"",$body);
+        if ($body=="") break;
+        if (strlen($body)<$maxlen) {
+          $bodys[] = $body;
+          break;
+        }
+      }
+      if (sizeof($bodys)>1) {
+        $txt.= "<CENTER>";
+        $txt.= $n."/".sizeof($bodys);
+        $txt.= "</CENTER>\n";
+      }
+      $txt.= str_replace("\n","<BR>",$bodys[$n-1]);
+      if (sizeof($bodys)>$n) {
+        $txt.= "<DIV ALIGN=RIGHT>";
+        $txt.= " ⇒ <A HREF=\"./view.phtml?ms=$ms&sn=$sn&p=$p&type=$type&s=$s&n=".($n+1)."\">次頁へ</A>";
+        $txt.= "</DIV>";
+      }
+    }
+  }
+  include ("../footer.inc.php");
+?>

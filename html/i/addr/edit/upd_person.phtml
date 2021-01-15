@@ -1,0 +1,196 @@
+<?php
+	include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+	include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+	$pagetitle = "住所録 個人情報の更新";
+	include ("../../header.inc.php");
+
+	if ($login) {
+		// 前処理
+		if ($s == "") {
+			$MES[] = "操作方法が正しくありません";
+		} else {
+			if (!empty($person_name)) {
+				$person_name = textsafe(sjis2euc(remove_emoji($person_name)));
+				$person_name = mb_convert_kana($person_name,"aK","EUC-JP");
+				$person_name = str_replace(" ","　",$person_name);
+			}
+			if (!empty($person_kana)) {
+				$person_kana = textsafe(sjis2euc(remove_emoji($person_kana)));
+				$person_kana = mb_convert_kana($person_kana,"aK","EUC-JP");
+				$person_kana = str_replace(" ","　",$person_kana);
+			}
+			if (!empty($person_sex)) { $person_sex = textsafe(sjis2euc(remove_emoji($person_sex))); }
+			if (!empty($person_depa)) {
+				$person_depa = textsafe(sjis2euc(remove_emoji($person_depa)));
+				$person_depa = mb_convert_kana($person_depa,"aK","EUC-JP");
+			}
+			if (!empty($person_post)) {
+				$person_post = textsafe(sjis2euc(remove_emoji($person_post)));
+				$person_post = mb_convert_kana($person_post,"aK","EUC-JP");
+			}
+			if (!empty($person_dialin)) { $person_dialin = textsafe(sjis2euc(remove_emoji($person_dialin))); }
+			if (!empty($person_email)) {
+				$person_email = textsafe(sjis2euc(remove_emoji($person_email)));
+				if ($person_email == "@") { $person_email = ""; }
+			}
+			if (!empty($person_email2)) {
+				$person_email2 = textsafe(sjis2euc(remove_emoji($person_email2)));
+				if ($person_email2 == "@") { $person_email2 = ""; }
+			}
+			if (!empty($person_birthday_Y)) { $person_birthday_Y = textsafe(sjis2euc(remove_emoji($person_birthday_Y))); }
+			if (!empty($person_birthday_M)) { $person_birthday_M = textsafe(sjis2euc(remove_emoji($person_birthday_M))); }
+			if (!empty($person_birthday_D)) { $person_birthday_D = textsafe(sjis2euc(remove_emoji($person_birthday_D))); }
+			if (!empty($person_handy))      { $person_handy = textsafe(sjis2euc(remove_emoji($person_handy))); }
+
+			// エラーチェック
+			if ($person_name == "") {
+				$MES[]="氏名が入力されていません ";
+			} else {
+			if (strlen($person_name)>80) {
+					$MES[]="氏名が長すぎます 40文字以内(半角80文字)で指定してください";
+				}
+			}
+			if ($person_kana != "") {
+				if (strlen($person_kana)>80) {
+					$MES[]="氏名のカナヨミが長すぎます 40文字以内(半角80文字)で指定してください";
+				}
+			}
+			if ($person_depa != "") {
+				if (strlen($person_depa)>120) {
+					$MES[]="所属部署が長すぎます 60文字以内(半角120文字)で指定してください";
+				}
+			}
+			if ($person_post != "") {
+				if (strlen($person_post)>120) {
+					$MES[]="肩書き・役職が長すぎます 60文字以内(半角120文字)で指定してください";
+				}
+			}
+			if ($person_dialin != "") {
+				if (strlen($person_dialin)>20) {
+					$MES[]="内線・ダイヤルインが長すぎます 20文字以内で指定してください";
+				} else {
+					if (!is_tel($person_dialin)) {
+						$MES[]="内線・ダイヤルインは半角数字とハイフン[-]で指定してください";
+					}
+				}
+			}
+			if ($person_email != "") {
+				if (strlen($person_email)>100) {
+					$MES[]="電子メール(通常)が長すぎます 100文字以内で指定してください";
+				} else {
+					if (!is_email($person_email)) {
+						$MES[]="電子メール(通常)の指定が正しくありません";
+					}
+				}
+			}
+			if ($person_email2 != "") {
+				if (strlen($person_email2)>100) {
+					$MES[]="電子メール(ケータイ)が長すぎます 100文字以内で指定してください";
+				} else {
+					if (!is_email($person_email2)) {
+						$MES[]="電子メール(ケータイ)の指定が正しくありません";
+					}
+				}
+			}
+			$person_birthday = "";
+			if ($person_birthday_Y>0 && $person_birthday_M>0 && $person_birthday_D>0) {
+				if (!checkdate($person_birthday_M,$person_birthday_D,$person_birthday_Y)) {
+					$MES[]="生年月日の指定が正しくありません";
+				} else {
+					$person_birthday = $person_birthday_Y."-".$person_birthday_M."-".$person_birthday_D;
+				}
+			}
+			if ($person_handy != "") {
+				if (strlen($person_handy)>100) {
+					$MES[]="携帯電話番号が長すぎます 100文字以内で指定してください";
+				} else {
+					if (!is_tel($person_handy)) {
+						$MES[]="携帯電話番号の指定が正しくありません";
+					}
+				}
+			}
+			if ($person_zip != "") {
+				if (strlen($person_zip)>8) {
+					$MES[]="郵便番号が長すぎます 8文字以内で指定してください";
+				}
+			}
+			if ($person_city != "") {
+				if (strlen($person_city)>100) {
+					$MES[]="住所(市区郡)が長すぎます 50文字以内(半角100文字)で指定してください";
+				}
+			}
+			if ($person_street != "") {
+				if (strlen($person_street)>100) {
+					$MES[]="住所(町村・番地)が長すぎます 50文字以内(半角100文字)で指定してください";
+				}
+			}
+			if ($person_build != "") {
+				if (strlen($person_build)>100) {
+					$MES[]="住所(ビル・マンション)が長すぎます 50文字以内(半角100文字)で指定してください";
+				}
+			}
+			if ($person_tel != "") {
+				if (strlen($person_tel)>80) {
+					$MES[]="電話番号が長すぎます 20文字以内で指定してください";
+				}
+			}
+			if ($person_fax != "") {
+				if (strlen($person_fax)>80) {
+					$MES[]="FAX番号が長すぎます 20文字以内で指定してください";
+				}
+			}
+		}
+
+		// エラー無しならDB更新
+		if (sizeof($MES)==0) {
+			$sql  = "UPDATE address SET ";
+			$sql .= "person_depa='".db_textsafe($person_depa)."',";
+			$sql .= "person_post='".db_textsafe($person_post)."',";
+			$sql .= "person_name='".db_textsafe($person_name)."',";
+			$sql .= "person_kana='".db_textsafe($person_kana)."',";
+			$sql .= "person_email='".db_textsafe($person_email)."',";
+			$sql .= "person_email2='".db_textsafe($person_email2)."',";
+			if ($person_birthday != "") {
+				$sql .= "person_birthday='".db_textsafe($person_birthday)."',";
+			} else {
+				$sql .= "person_birthday=NULL,";
+			}
+			$sql .= "person_dialin='".db_textsafe($person_dialin)."',";
+			$sql .= "person_sex='".db_textsafe($person_sex)."',";
+			$sql .= "person_handy='".db_textsafe($person_handy)."',";
+			$sql .= "person_zip='".db_textsafe($person_zip)."',";
+			$sql .= "person_state='".db_textsafe($person_state)."',";
+			$sql .= "person_city='".db_textsafe($person_city)."',";
+			$sql .= "person_street='".db_textsafe($person_street)."',";
+			$sql .= "person_build='".db_textsafe($person_build)."',";
+			$sql .= "person_tel='".db_textsafe($person_tel)."',";
+			$sql .= "person_fax='".db_textsafe($person_fax)."',";
+			$sql .= "updatestamp='now' ";
+			$sql .= "WHERE seqno=".$s;
+
+			$res = pg_query($conn,$sql);
+			if ($res==false) {
+				$MES[] = "更新に失敗しました。";
+			}
+		}
+
+		if (sizeof($MES)>0) {
+			// エラー時
+			$txt.= "<FONT COLOR=#FF0000>";
+			while (list($key,$val)=each($MES)) { $txt.= $val."<BR>"; }
+			$txt.= "</FONT>";
+		} else {
+			// 正常時
+			$txt.= "<FORM NAME=\"add\" ACTION=\"/i/addr/view.phtml\" METHOD=POST>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=\"$ms\">";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=seqno VALUE=\"$s\">";
+			$txt.= "<DIV ALIGN=CENTER><BR>";
+			$txt.= "&emojitel;更新完了<BR><BR>";
+			$txt.= "<INPUT TYPE=SUBMIT VALUE=\"戻る\">";
+			$txt.= "</DIV>";
+			$txt.= "</FORM><BR>";
+		}
+	}
+	include ("../../footer.inc.php");
+?>

@@ -1,0 +1,54 @@
+<?php
+	include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+	include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+	$pagetitle = "伝言メモの削除";
+	include ("../../header.inc.php");
+
+	if ($login) {
+		if ($type=="send") {
+			$sql_memo = "DELETE FROM memo WHERE id_from='".$login_id."' AND seqno=".$seqno."";
+			$res_memo = pg_query($conn,$sql_memo);
+			if($res_memo == false){
+				$MES[] = "削除失敗";
+			}
+			pg_free_result($res_memo);
+
+			$sql_memo_answer = "DELETE FROM memo_answer WHERE id_from='".$login_id."' AND memo_seqno=".$seqno."";
+			$res_memo_answer = pg_query($conn,$sql_memo_answer);
+			if($res_memo_answer == false){
+				$MES[] = "削除失敗";
+			}
+			pg_free_result($res_memo_answer);
+		} else {
+			$sql_memo_answer = "DELETE FROM memo_answer WHERE id_to='".$login_id."' AND seqno=".$seqno."";
+			$res_memo_answer = pg_query($conn,$sql_memo_answer);
+			if($res_memo_answer == false){
+				$MES[] = "削除失敗";
+			}
+			pg_free_result($res_memo_answer);
+		}
+
+		if (sizeof($MES) > 0) {
+			## エラー時
+			$txt.= "<FONT color=#FF0000>";
+			while (list($key,$val)=each($MES)) {
+				$txt.= $val."<br>";
+			}
+			$txt.= "</FONT>";
+		} else {
+			## 正常時
+			$txt.= "<form action=\"../\" method=\"get\">";
+			$txt.= "<input type=\"hidden\" name=\"ms\" value=\"$ms\">";
+			$txt.= "<input type=\"hidden\" NAME=\"uid\" value=\"$uid\">";
+			$txt.= "<br><center>";
+			$txt.= "&emojimail;";
+			$txt.= "削除完了<br>";
+			$txt.= "<br>";
+			$txt.= "<input type=\"submit\" value=\"一覧へ\">";
+			$txt.= "</center>";
+			$txt.= "</form>";
+		}
+	}
+	include ("../../footer.inc.php");
+?>

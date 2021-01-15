@@ -1,0 +1,118 @@
+<?php
+  include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+  include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+  $pagetitle = "備忘録の登録";
+  include "../../header.inc.php";
+
+  // 前処理
+  if (!empty($s)) { $type = "edit"; } else { $type = "new"; }
+  if(!empty($subject)) {
+    $subject = textsafe(sjis2euc(remove_emoji($subject)));
+    $subject = mb_convert_kana($subject,"aK","EUC-JP");
+  }
+  if(!empty($body)) {
+    $body = textsafe(sjis2euc(remove_emoji($body)));
+    $body = mb_convert_kana($body,"aK","EUC-JP");
+  }
+
+  // エラーチェック
+  $STR = $subject;
+  $LEN = strlen($STR);
+  if ($LEN == 0) {
+    $MES[] = "タイトル未入力";
+  }
+
+  $STR = $body;
+  $LEN = strlen($STR);
+  if ($LEN == 0) {
+    $MES[] = "メモ内容未入力";
+  }
+
+  // DB処理
+  if (sizeof($MES)==0) {
+    if (!empty($s) and $s>0){
+      $sql  = "UPDATE todos SET ";
+      $sql .= "user_id='$login_id',";
+      $sql .= "priority='$priority',";
+      $sql .= "subject='$subject',";
+      $sql .= "body='$body',";
+      $sql .= "updatestamp='now'";
+      $sql .= " where seqno='$s' and user_id='$login_id'";
+      $res = pg_query($conn,$sql);
+      if ($res==false) {
+        $MES[] = "登録に失敗しました。";
+      }
+    } else {
+      //新規追加
+      // seqno採番
+      $sql = "SELECT * FROM todos WHERE user_id='$login_id' ORDER BY seqno desc;";
+      $res = pg_query($conn, $sql);
+      $cnt = pg_num_rows($res);
+      if ($cnt==0) {
+        $seqno = 1;
+      } else {
+        $row = pg_fetch_array($res, 0);
+        $seqno = $row["seqno"] + 1;
+      }
+
+      $sql  = "INSERT INTO todos (";
+      $sql .= "seqno,";
+      $sql .= "user_id,";
+      $sql .= "priority,";
+      $sql .= "subject,";
+      $sql .= "body,";
+      $sql .= "createstamp,";
+      $sql .= "updatestamp";
+      $sql .= ") VALUES (";
+      $sql .= "$seqno,";
+      $sql .= "'$login_id',";
+      $sql .= "'$priority',";
+      $sql .= "'".db_textsafe($subject)."',";
+      $sql .= "'".db_textsafe($body)."',";
+      $sql .= "'now',";
+      $sql .= "'now'";
+      $sql .= ")";
+      $res = pg_query($conn,$sql);
+
+      if ($res==false) {
+        $MES[] = "登録に失敗しました。";
+      }
+    }
+  }
+
+  if (sizeof($MES)>0) {
+    ## エラー時
+    $txt.= "<DIV ALIGN=CENTER><BR>";
+    $txt.= "<FONT COLOR=#FF0000>";
+    while (list($key,$val)=each($MES)) {
+      $txt.= "".$val."<BR>";
+    }
+    $txt.= "</FONT>";
+    $txt.= "</DIV>";
+    $txt.= "<FORM ACTION=\"./\" METHOD=POST>";
+    $txt.= "<INPUT TYPE=\"HIDDEN\" NAME=\"ms\" VALUE=\"$ms\">";
+    $txt.= "<INPUT TYPE=\"HIDDEN\" NAME=\"back\" VALUE=\"t\">";
+    if ($type == "edit") {
+      $txt.= "<INPUT TYPE=HIDDEN NAME=\"s\" VALUE=\"$s\">";
+    }
+    if (!empty($subject))  { $txt.= "<INPUT TYPE=HIDDEN NAME=\"subject\" VALUE=\"$subject\">"; }
+    if (!empty($priority)) { $txt.= "<INPUT TYPE=HIDDEN NAME=\"priority\" VALUE=\"$priority\">"; }
+    if (!empty($body))     { $txt.= "<INPUT TYPE=HIDDEN NAME=\"body\" VALUE=\"$body\">"; }
+    $txt.= "<DIV ALIGN=CENTER><INPUT TYPE=SUBMIT VALUE=\"戻る\"></DIV>";
+    $txt.= "</FORM>\n";
+  } else {
+    ## 正常時
+    $txt.= "<FORM NAME=\"add\" ACTION=\"/i/todo/$serial\" METHOD=POST>";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"$p\">";
+    $txt.= "<DIV ALIGN=CENTER><BR>";
+    $txt.= "更新完了&emojibulb;<BR><BR>";
+    $txt.= "<INPUT TYPE=SUBMIT VALUE=\"戻る\">";
+    $txt.= "</DIV>";
+    $txt.= "</FORM><BR>";
+  }
+  // フッタ表示
+  include "../../footer.inc.php";
+
+?>

@@ -1,0 +1,48 @@
+<?php
+	include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+	include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+	$pagetitle = "予定表 削除";
+	include ("../../header.inc.php");
+
+	if ($login) {
+		## 削除処理
+		$sql = "SELECT * FROM schedules where seqno=".$s;
+		$res = pg_query($conn,$sql);
+		if(pg_num_rows($res)==0){
+			$MES[] = "指定された情報は既に削除されています";
+		} else {
+			$sql = "DELETE FROM schedules where seqno=".$s;
+			$res = pg_query($conn,$sql);
+			if($res==false){
+				$MES[] = "削除に失敗しました";
+			} else {
+				$sql = "DELETE FROM schedules where ref_seqno=".$s;
+				$res = pg_query($conn,$sql);
+				if($res==false){
+					$MES[] = "削除に失敗しました";
+				}
+			}
+		}
+
+		if (sizeof($MES)>0) {
+			## エラー
+			$txt.= "<FONT COLOR=#FF0000>";
+			while (list($key,$val)=each($MES)) {
+				$txt.= $val."<BR>";
+			}
+			$txt.= "</FONT>\n";
+		} else {
+			## 正常時処理
+			$txt.= "<FORM ACTION=\"../\" METHOD=GET>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=\"$ms\">";
+			$txt.= "<BR><CENTER>";
+			$txt.= "&emojitrain;削除完了<BR>";
+			$txt.= "<BR>";
+			$txt.= "<INPUT TYPE=SUBMIT VALUE=\"一覧へ\">";
+			$txt.= "</CENTER>\n";
+			$txt.= "</FORM>\n";
+		}
+	}
+	include ("../../footer.inc.php");
+?>

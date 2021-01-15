@@ -1,0 +1,71 @@
+<?php
+  include ("../../config.inc.php"); include ("../../lib.inc.php");
+  include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+  $pagetitle = "回覧板";
+  include ("../header.inc.php");
+
+  if (empty($type) || ($type!="to" && $type!="from")) $type = "to";
+
+  if ($login) {
+    $txt.= "回覧板&emojimemo;";
+    $txt.= "<hr size=\"0\">\n";
+
+    // エラーチェック
+
+    // 表示
+    if (sizeof($MES) > 0) {
+      // エラー
+      $txt.= "<FONT color=#FF0000>";
+      while (list($key,$val)=each($MES)) { $txt.= $val."<br>"; }
+      $txt.= "</FONT>\n";
+    } else {
+      // 通常表示
+      $sql_cnt = "SELECT circulas_ret.result_sign,count(*) as count FROM circulas LEFT JOIN (SELECT refno,result_sign FROM circulas_ret WHERE user_id ='$login_id') AS circulas_ret ON circulas.seqno = circulas_ret.refno WHERE user_id_to ~* '(^|,)$login_id(,|$)' GROUP BY circulas_ret.result_sign";
+      $res_cnt = pg_query($conn,$sql_cnt);
+      $cnt_cnt = pg_num_rows($res_cnt);
+      if ($cnt_cnt>0) {
+        for($i=0;$i<$cnt_cnt;$i++) {
+          $row_cnt = pg_fetch_array($res_cnt,$i);
+          if ($row_cnt["result_sign"]=="t") {
+            $to_has += $row_cnt["count"];
+          } else {
+            $to_not += $row_cnt["count"];
+          }
+        }
+      }
+      $sql_cnt = "SELECT result_sign,count(*) as count FROM circulas WHERE user_id='$login_id' GROUP BY result_sign";
+      $res_cnt = pg_query($conn,$sql_cnt);
+      $cnt_cnt = pg_num_rows($res_cnt);
+      if ($cnt_cnt>0) {
+        for($i=0;$i<$cnt_cnt;$i++) {
+          $row_cnt = pg_fetch_array($res_cnt,$i);
+          if ($row_cnt["result_sign"]=="t") {
+            $from_has += $row_cnt["count"];
+          } else {
+            $from_not += $row_cnt["count"];
+          }
+        }
+      }
+
+      // 受信一覧
+      $txt.= "&emoji1;<A HREF=\"./list.phtml?type=tonot&ms=$ms&sn=$sn&uid=".$uid."\" accesskey=1>未読 ";
+      if ($to_not > 0) { $txt.= $to_not."件"; } else { $txt.= "なし"; } $txt.= "</A><BR>\n";
+      $txt.= "&emoji2;<A HREF=\"./list.phtml?type=tohas&ms=$ms&sn=$sn&uid=".$uid."\" accesskey=2>既読 ";
+      if ($to_has > 0) { $txt.= $to_has."件"; } else { $txt.= "なし"; } $txt.= "</A><BR>\n";
+
+      // 送信一覧
+      $txt.= "&emoji3;<A HREF=\"./list.phtml?type=fromnot&ms=$ms&sn=$sn&uid=".$uid."\" accesskey=3>回覧中 ";
+      if ($from_not > 0) { $txt.= $from_not."件"; } else { $txt.= "なし"; } $txt.= "</A><BR>\n";
+      $txt.= "&emoji4;<A HREF=\"./list.phtml?type=fromhas&ms=$ms&sn=$sn&uid=".$uid."\" accesskey=4>回覧済 ";
+      if ($from_has > 0) { $txt.= $from_has."件"; } else { $txt.= "なし"; } $txt.= "</A><BR>\n";
+    }
+
+    $txt.= "<hr size=\"0\">";
+    $txt.= "<DIV ALIGN=RIGHT>";
+    $txt.= "&emoji0;<A HREF=\"./add/?ms=$ms&sn=$sn\" $accesskey=0>";
+    $txt.= "新規回覧</A>";
+    $txt.= "</DIV>\n";
+  }
+  include ("../footer.inc.php");
+?>

@@ -1,0 +1,59 @@
+<?php
+	include ("../config.inc.php"); include ("../lib.inc.php");
+	include ("./agent.inc.php"); include ("./emoji.inc.php");
+	include ("./header.inc.php");
+
+	if ($login) {
+		## 変数設定
+		$txt = "";
+
+		//ログイン後表示(正常時)
+		$today = getdate();
+		$ty = $today["year"];
+		$tm = $today["mon"];
+		$td = $today["mday"];
+
+		if ($y=="") {
+			$today = getdate();
+			$y = $today["year"];
+			$m = $today["mon"];
+			$d = $today["mday"];
+		}
+
+		$env = getenv("REQUEST_URI");
+
+		if ($agenttype=="imode") {
+			$txt.= $system_shortname."V2&emojiimode2;";
+		} elseif ($agenttype=="jsky") {
+			$txt.= $system_shortname."V2&emojivodafone;";
+		} elseif ($agenttype=="ezweb") {
+			$txt.= $system_shortname."V2&emojiezweb;";
+		} else {
+			$txt.= "Mobile&nbsp;".$system_name;
+		}
+		$txt.= "<hr size=\"0\">";
+		$txt.= "&emoji1;<A HREF=\"/i/sche/".$serial."\" $accesskey=\"1\">予定表</A>&emojitrain;<BR>";
+		$txt.= "&emoji2;<A HREF=\"/i/room/".$serial."\" $accesskey=2>施設予約</A>&emojibuild;<BR>";
+		$txt.= "&emoji3;<A HREF=\"/i/mail/".$serial."\" $accesskey=3>伝言メモ</A>&emojimail;<BR>";
+		$txt.= "&emoji4;<A HREF=\"/i/todo/".$serial."\" $accesskey=4>備忘録</A>&emojibulb;<BR>";
+		$txt.= "&emoji5;<A HREF=\"/i/bbs/".$serial."\" $accesskey=5>ＢＢＳ</A>&emojisunadokei;<BR>";
+		$txt.= "&emoji6;<A HREF=\"/i/cir/".$serial."\" $accesskey=6>回覧板</A>&emojimemo;<BR>";
+		$txt.= "&emoji7;<A HREF=\"/i/flow/".$serial."\" $accesskey=7>ワークフロー</A>&emojiok;<BR>";
+		$txt.= "&emoji8;<A HREF=\"/i/addr/".$serial."\" $accesskey=8>住所録</A>&emojitel;<BR>";
+		$txt.= "&emoji9;<A HREF=\"/i/link/".$serial."\" $accesskey=9>リンク集</A>&emojimagglass;<BR>";
+		$txt.= "&emoji0;<A HREF=\"/i/mem/".$serial."\" $accesskey=0>メンバー表</A>&emojiface_small;<BR>";
+
+		## 初回ログイン時
+		$txt.= "<hr size=\"0\">";
+		if ($login==true && $mode=="login") {
+			$txt.= "<FONT COLOR=\"#6666ff\">";
+			$txt.= "&emojibulb;このページをブックマークしておくと、次回から直接このトップページへログインすることができます&emojimelody;";
+			$txt.= "</FONT>";
+		} else {
+			$txt.= "<FONT COLOR=\"#CC6600\">";
+			$txt.= "ケータイページの使用感・ご意見・ご要望などは<A HREF=\"mailto:".$webmaster."\">サポート係</A>まで";
+			$txt.= "</FONT>";
+		}
+	}
+	include ("./footer.inc.php");
+?>

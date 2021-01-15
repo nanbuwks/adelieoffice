@@ -1,0 +1,164 @@
+<?php
+	include ("../../config.inc.php"); include ("../../lib.inc.php");
+	include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+	$pagetitle = "メンバー一覧";
+	include ("../header.inc.php");
+
+	if ($login) {
+		$txt    = "";
+		$MES    = array();
+		$maxrow = "9";
+		$ms     = "";
+		$grp    = "";
+		$next   = "";
+		$prev   = "";
+		$n      = "1";
+
+		## 変数処理
+		if (isset($_POST["grpchg"])) $grpchg = textsafe(sjis2euc($_POST["grpchg"]));
+		if (isset($_POST["next"])) $next = textsafe(sjis2euc($_POST["next"]));
+		if (isset($_POST["prev"])) $prev = textsafe(sjis2euc($_POST["prev"]));
+
+		if (!empty($grpchg) || !empty($next) || !empty($prev)) {
+			if (isset($_POST["ms"]))     $ms     = textsafe(sjis2euc($_POST["ms"]));
+			if (isset($_POST["n"]))      $n      = textsafe(sjis2euc($_POST["n"]));
+			if (isset($_POST["grp"]))    $grp    = textsafe(sjis2euc($_POST["grp"]));
+			if (!empty($next)) $n++;
+			if (!empty($prev)) $n--;
+		} else {
+			if (isset($_GET["ms"]))  $ms  = textsafe(sjis2euc($_GET["ms"]));
+		}
+
+		## グループ変数処理
+		if (!empty($_REQUEST["grp"])) {
+			$grp = textsafe(sjis2euc($_REQUEST["grp"]));
+			if ($grp=="all") {
+				$grp = "";
+				$grp_name = "全員";
+			} else {
+				## 存在チェック
+				$sql_grpchk = "SELECT * FROM groups WHERE id='".db_textsafe($grp)."'";
+				$res_grpchk = pg_query($conn, $sql_grpchk);
+				if (pg_num_rows($res_grpchk)>0) {
+					$row_grpchk = pg_fetch_array($res_grpchk,0);
+					$grp_name = $row_grpchk["name"];
+				} else {
+					$grp = "";
+					$grp_name = "全員";
+				}
+			}
+		} else {
+			$grp = "";
+			$grp_name = "全員";
+		}
+
+#		if (!empty($_REQUEST["sn"])) $sn = textsafe(sjis2euc($_REQUEST["sn"]));
+#		if (!empty($_REQUEST["s"]))  $s  = textsafe(sjis2euc($_REQUEST["s"]));
+#		if (empty($_REQUEST["n"]) || !is_numeric($_REQUEST["n"]) || $_REQUEST["n"]<1) $n=1;
+
+		if (sizeof($MES)==0) {
+			$txt.= "グループ名:".mb_convert_kana($grp_name,"ak","EUC-JP");
+			$txt.= "<hr size=\"0\">";
+			$txt.= "<form action=\"./\" method=\"post\">";
+			$txt.= "<input type=\"hidden\" name=\"ms\" value=\"$ms\">";
+
+			$txt.= "<INPUT TYPE=HIDDEN NAME=\"n\" VALUE=\"$n\">";
+
+			## グループ選択メニュー
+			$txt.= "<select name=\"grp\">";
+			$sql_grp = "SELECT name,id,viewsign FROM groups ORDER BY seqno";
+			$res_grp = pg_query($conn,$sql_grp);
+			$cnt_grp = pg_num_rows($res_grp);
+			if ($cnt_grp>0) {
+				$txt.= "<option value=\"all\"";
+				if (empty($grp) || $grp=="all") $txt.=  " selected";
+				$txt.= ">全て";
+				for ($i=0;$i<$cnt_grp;$i++) {
+					$row_grp = pg_fetch_array($res_grp,$i);
+					$txt.= "<option value=\"".$row_grp["id"]."\"";
+					if ($row_grp["id"]==$grp) $txt.=  " selected";
+					$txt.= ">".$row_grp["name"];
+				}
+			}
+			$txt.= "</select>";
+			$txt.= "<center><input type=\"submit\" name=\"grpchg\" value=\"グループ変更\"></center>";
+
+			## ユーザー選択メニュー
+			if ((empty($grp) || trim($grp)=="" || $grp=="all")) {
+				$sql_user = "SELECT id,name_ryaku FROM users ORDER BY seqno";
+			} else {
+				$sql_user = "SELECT id,name_ryaku FROM users";
+				$sql_user.= " RIGHT JOIN (SELECT * FROM users_entry WHERE group_id='$grp') as entry ON users.id=entry.user_id";
+				$sql_user.= " ORDER BY seqno";
+			}
+			$res_user = pg_query($conn,$sql_user);
+			$cnt_user = pg_num_rows($res_user);
+
+			if ($cnt_user>0) {
+				## ページ切替処理
+				$nextpage = false;
+				$allpages = floor($cnt_user / $maxrow) +1;
+				if ($n < 0) $n = 1;
+				if ($n > $allpages) $n = 1;
+				$s_row = ($n - 1) * $maxrow;
+				$e_row = $n * $maxrow - 1;
+				if ($e_row > $cnt_user - 1) $e_row = $cnt_user - 1;
+				if ($cnt_user - 1 > $e_row) $nextpage = true;
+
+				for($i=$s_row; $i<=$e_row; $i++) {
+					$row_user = pg_fetch_array($res_user, $i);
+
+					$txt.= "<A HREF=\"./detail.phtml$serial&sn=$sn&id=".$row_user["id"]."&grp=$grp&n=$n\">";
+					$txt.= mb_convert_kana($row_user["name_ryaku"],"ak","EUC-JP");
+					$txt.= "</A>";
+
+					$txt.= "&nbsp;";
+
+					## 行き先ガイド
+					$sql_location = "SELECT * FROM users_location WHERE user_id='".$row_user["id"]."' ORDER BY updatestamp DESC";
+					$res_location = pg_query($conn,$sql_location);
+					$cnt_location = pg_num_rows($res_location);
+					if ($cnt_location==0) {
+						$code = "";
+						$text = "未設定";
+						$updatestamp = false;
+					} else {
+						$row_location = pg_fetch_array($res_location,0);
+						$code = $row_location["code"];
+						$text = $row_location["text"];
+						$updatestamp = datetime2timestamp($row_location["updatestamp"]);
+					}
+
+					$txt.= $text;
+
+					if ($code!="") {
+						$txt.= "(";
+						if ($updatestamp!=false) {
+							if (date("Ymd")!=date("Ymd",$updatestamp)) {
+								if (date("Y")!=date("Y",$updatestamp)) {
+									$txt.= date("Y",$updatestamp)."/";
+								}
+								$txt.= date("n/j",$updatestamp);
+								$txt.= " ";
+							}
+							$txt.= date("H:i",$updatestamp);
+						}
+						$txt.= ")";
+					}
+					$txt.= "<br>";
+				}
+
+				## ページ切替表示
+				$txt.= "<center>";
+				if ($n > 1)    { $txt.= "<input type=\"submit\" name=\"prev\" VALUE=\"前の".$maxrow."件\">"; }
+				if ($nextpage) { $txt.= "<input type=\"submit\" name=\"next\" VALUE=\"次の".$maxrow."件\">"; }
+				$txt.= "</center>";
+			}
+			$txt.= "</form>";
+		}
+		$txt.= "</center>";
+	}
+
+	include "../footer.inc.php";
+?>

@@ -1,0 +1,146 @@
+<?php
+  include ("../../config.inc.php"); include ("../../lib.inc.php");
+  include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+  $pagetitle = "回覧板";
+  include ("../header.inc.php");
+
+  if ($login) {
+    // エラーチェック
+    if (empty($s)) {
+      $DMES[] = "回覧が選択されていません";
+    } else {
+      $sql = "SELECT * FROM circulas WHERE (user_id='$login_id' or user_id_to~*'(^|,)$login_id(,|$)') AND seqno=$s";
+      $res = pg_query($conn,$sql);
+      $cnt = pg_num_rows($res);
+      if ($cnt==0) {
+        // 回覧なし
+        $DMES[] = "指定された回覧は登録されていないか既に削除されています";
+      } else {
+        // 既読チェック処理
+        if (get_count("circulas_res","seqno=$s AND user_id='$login_id'")==0) {
+          $sql  = "INSERT INTO circulas_res (seqno,user_id,createstamp) VALUES ";
+          $sql .= "($no,'$login_id','now()')";
+        } else {
+          $sql  = "UPDATE circulas_res SET createstamp='now()' ";
+          $sql .= "WHERE seqno=$s AND user_id='$login_id'";
+        }
+        pg_query($conn,$sql);
+        // 回覧の取得
+        $row = pg_fetch_array($res,0);
+        $seqno   = $row["seqno"];
+        $dirno   = strval($seqno); if (strlen($dirno)<8) $dirno = str_repeat("0",8-strlen($dirno)).$dirno;
+        $user_id = $row["user_id"];
+        $user_id_to = $row["user_id_to"];
+        $subject = str_highlight($kwd,$row["subject"]);
+        $bodys = preg_split("\n",preg_replace("/<BR>|\r\n|\r|\n/i","\n",$row["body"]));
+        $body = "";
+        while(list($seq,$line)=each($bodys)) {
+          $s = $line;
+          while (true) {
+            if (strlen($s)>76) {
+              $ss = mb_strcut($s,0,76,"EUC-JP");
+              $s = substr($s,strlen($ss));
+            } else {
+              $ss = $s;
+              $s = "";
+            }
+            $ss = str_highlight($kwd,$ss);
+            $ss = str_link(preg_replace("/\s\s/i"," &nbsp;",$ss));
+            $body .= $ss."<BR>";
+            if ($s=="") break;
+          }
+        }
+        $create_datetime = date("Y年n月j日 H:i",datetime2timestamp($row["createstamp"]));
+      }
+    }
+
+    // ページ内容作成
+    $pagetext  = "";
+    if (sizeof($DMES)==0) {
+      $user_ids_to = preg_split(",",$user_id_to);
+
+      $txt.= "回覧先:".sizeof($user_ids_to)."名";
+      $txt.= "<hr size=\"0\">";
+      // 返信・結果確認
+      if (sizeof($user_ids_to)>0) {
+        for($i=0;$i<sizeof($user_ids_to);$i++){
+
+          $user_id_to = $user_ids_to[$i];
+
+          $sql_res = "SELECT * FROM circulas_ret WHERE refno=$seqno AND user_id='$user_id_to' AND result_sign='t'";
+          $res_res = pg_query($conn,$sql_res);
+          $cnt_res = pg_num_rows($res_res);
+          if ($cnt_res==0) {
+            $note = "";
+            $stamp = null;
+            $result = "f";
+          } else {
+            $row_res = pg_fetch_array($res_res,0);
+            $note = $row_res["note"];
+            $stamp = $row_res["createstamp"];
+            $result = $row_res["result_sign"];
+          }
+
+          if ($user_id_to == $login_id) {
+            // 自身
+            $txt.= "<A HREF=\"../mem/detail.phtml$serial&sn=$sn&id=".$user_id_to."\">";
+            $txt.= get_first("users","name_ryaku","id='$user_id_to'","不明");
+            $txt.= "</A>";
+            $txt.= " \n";
+
+            if ($result=="f") {
+              $txt.= "<FONT COLOR=#FF33333>未回答</FONT>";
+              $txt.= "<BR>\n";
+              $txt.= "<FORM ACTION=\"./result/\" METHOD=GET>\n";
+              $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">\n";
+              $txt.= "<INPUT TYPE=HIDDEN NAME=\"s\" VALUE=\"$seqno\">\n";
+              $txt.= "<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"$p\">\n";
+              $txt.= "<INPUT TYPE=HIDDEN NAME=\"type\" VALUE=\"$type\">\n";
+              $txt.= "<TEXTAREA NAME=\"note\" ROWS=2>$note</TEXTAREA>";
+              $txt.= "<INPUT TYPE=SUBMIT VALUE=\"回答する\" STYLE=\"width:63px\">";
+              $txt.= "</FORM>\n";
+            } else {
+#              $txt.= "[回答済]";
+              $txt.= date("m/d",datetime2timestamp($stamp));
+              $txt.= "回答済";
+#              $txt.= "(";
+#              $txt.= $wname[date("w",datetime2timestamp($stamp))];
+#              $txt.= ") ";
+#              $txt.= " ";
+#              $txt.= date("H:i",datetime2timestamp($stamp));
+#              $txt.= "<BR>";
+#              $txt.= $note;
+            }
+            $txt.= "<BR>\n";
+
+          } else {
+            // 以外
+            $txt.= "<A HREF=\"../mem/detail.phtml$serial&sn=$sn&id=".$user_id_to."\">";
+            $txt.= get_first("users","name_ryaku","id='$user_id_to'","不明");
+            $txt.= "</A>";
+            $txt.= "&nbsp;";
+
+            if ($cnt_res==0) {
+              $txt.= "<FONT COLOR=#FF33333>未回答</FONT>";
+            } else {
+#              $txt.= "[回答済]";
+              $txt.= date("m/d",datetime2timestamp($stamp));
+              $txt.= "済";
+#              $txt.= "(";
+#              $txt.= $wname[date("w",datetime2timestamp($stamp))];
+#              $txt.= ") ";
+#              $txt.= " ";
+#              $txt.= date("H:i",datetime2timestamp($stamp));
+            }
+            $txt.= "<BR>\n";
+
+#            $txt.= $note; // コメント
+#            $txt.= "<BR>\n";
+          }
+        }
+      }
+    }
+  }
+  include ("../footer.inc.php");
+?>

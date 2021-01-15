@@ -1,0 +1,106 @@
+<?php
+  include "../../config.inc.php"; include "../../lib.inc.php";
+
+  $linktext  = "<A HREF=\"../../\"CLASS=\"BAR\">トップページ</A> &gt; ";
+  $linktext .= "<A HREF=\"../\" CLASS=\"BAR\">Webフォルダ</A> &gt; ";
+  $linktext .= "<FONT COLOR=#FFFF00>フォルダの利用者変更</FONT> ";
+
+  include "../../login_check.inc.php";
+
+  if ($login && sizeof($MES)==0 && $admin_sign=="t") {
+	  // 前処理
+	  $path = urldecode($_REQUEST["path"]);
+	  $target    = $_POST["target"];
+
+	  $group     = $_POST["group"];
+	  $user      = $_POST["user"];
+	  $group_ids = $_POST["group_ids"];
+	  $user_ids  = $_POST["user_ids"];
+
+    // エラーチェック
+    if ($target!="group" && $target!="user") {
+      $DMES[] = "指定が正しくありません";
+    } else {
+      if ($target=="group" && $group!="all" && sizeof($group_ids)==0) {
+        $DMES[] = "グループが選択されていません";
+      }
+      if ($target=="user" && $user!="all" && sizeof($user_ids)==0) {
+        $DMES[] = "ユーザーが選択されていません";
+      }
+    }
+
+    if (sizeof($DMES)==0) {
+      // DBへ書き込み
+      $sql = "SELECT * FROM folders WHERE path='".db_textsafe($path)."'";
+      $res = pg_query($conn, $sql);
+      $cnt = pg_num_rows($res);
+
+      // DBの更新
+      if ($cnt == 0) { // 新規
+        $seqno = get_last("folders","seqno","",0)+1;
+
+        $sql  = "INSERT INTO folders (seqno,user_id,path,comment,createstamp,updatestamp)";
+        $sql .= " VALUES (";
+        $sql .= $seqno.",";
+        $sql .= "'".$login_id."',";
+        $sql .= "'".db_textsafe($path)."',";
+        $sql .= "'',";
+        $sql .= "'now',";
+        $sql .= "'now'";
+        $sql .= ")";
+        $res  = pg_query($conn,$sql);
+      }
+
+      $sql = "UPDATE folders SET ";
+      if ($target=="group") {
+        // グループの変更
+        if ($group=="all") {
+          $sql .= "view_group_ids = null ";
+        } else {
+          $sql .= "view_group_ids = '";
+          for ($i=0;$i<sizeof($group_ids);$i++) {
+            if ($i>0) $sql .= ",";
+            $sql .= $group_ids[$i];
+          }
+          $sql .= "'";
+        }
+      } else {
+        // ユーザーの変更
+        if ($user=="all") {
+          $sql .= "view_user_ids = null ";
+        } else {
+          $sql .= "view_user_ids = '";
+          for ($i=0;$i<sizeof($user_ids);$i++) {
+            if ($i>0) $sql .= ",";
+            $sql .= $user_ids[$i];
+          }
+          $sql .= "'";
+        }
+      }
+      $sql .= " WHERE path='".db_textsafe($path)."'";
+      $res  = pg_query($conn,$sql);
+    }
+
+    if (sizeof($DMES)==0) {
+      // 正常終了
+      $returl = "./?path=".urlencode($path);
+      Header("Location: ".$returl);
+    } else {
+      // エラー時
+		  include "../../header.inc.php";
+
+      $pagetext .= "<BR><CENTER>\n";
+      $pagetext .= "<FONT COLOR=#FF0000>\n";
+      while (list($key,$val)=each($DMES)) {
+        $pagetext .= $val."<BR>\n";
+      }
+      $pagetext .= "</FONT>\n";
+      $pagetext .= "<FORM><INPUT TYPE=BUTTON VALUE=\"戻る\" ONCLICK=\"history.back()\"></FORM>\n";
+      $pagetext .= "</CENTER>";
+
+		  include "../../detail.inc.php";
+		  include "../../footer.inc.php";
+    }
+  }
+
+?>

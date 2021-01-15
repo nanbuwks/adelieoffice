@@ -1,0 +1,83 @@
+<?php
+  include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+  include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+  ## header表示
+  $pagetitle = euc2sjis("予定表 内容表示");
+  include ("../../header.inc.php");
+
+  ## エラー判定
+  if ($login) {
+    ## 変数処理
+    if (empty($_GET["n"]) || !is_numeric($_GET["n"])) {
+      $n = 1;
+    } else {
+      $n = textsafe($_GET["n"]);
+    }
+    if (empty($_GET["s"]) || !is_numeric($_GET["s"])) {
+      $s = "";
+    } else {
+      $s = textsafe($_GET["s"]);
+    }
+
+    if (!empty($s)) {
+      ## データ取得
+      $sql = "SELECT * FROM schedules WHERE seqno='".db_textsafe($s)."'";
+      $res = pg_query($conn, $sql);
+      if (pg_num_rows($res)<1) {
+        $MES[] = "正しく選択されていません";
+      } else {
+        $row = pg_fetch_array($res,0);
+        $note = $row["note"];
+      }
+    } else {
+      $MES[] = "正しくページからお入りください";
+    }
+
+    if (sizeof($MES)>0) {
+      ## エラー表示
+      $txt.= "<FONT COLOR=#FF0000>";
+      while (list($key,$val)=each($MES)) {
+        $txt.= $val."<BR>";
+      }
+      $txt.= "</FONT>\n";
+    } else {
+      ## 正常時
+      $maxlen = 512;
+      $note = preg_replace("/\x0D\x0A|\x0D|\x0A|\r\n|\n/","<BR>",$note); ## 改行コード変換
+      $i = 0;
+      while ($i<mb_strlen($note)) {
+        $width = $maxlen;
+        $notes[] = mb_strcut($note,$i,$width,"EUC-JP");
+        $i = $i+$width;
+      }
+
+      ## ページ数取得
+      $pages = sizeof($notes);
+      $txt.= "<CENTER>$n/$pages</CENTER>";
+      $txt.= "<hr size=\"0\">";
+
+      ## ページ切り換え
+      if ($pages<$n) $n = $pages;
+      if ($n<=0) $n=1;
+      if ($n>1) {
+        $txt.= "<CENTER>&lt;<A HREF=\"./note.phtml$serial&bid=$bid&s=$s&p=$p&n=".($n-1)."&y=$y&m=$m&d=$d\">前項</A>&gt;</CENTER>";
+      }
+
+      ## 本文表示
+      $txt.= $notes[$n-1]."<BR>";
+
+      ## ページ切り換え
+      if ($pages>$n) {
+        $txt.= "<CENTER>&lt;<A HREF=\"./note.phtml$serial&bid=$bid&s=$s&p=$p&n=".($n+1)."&y=$y&m=$m&d=$d\">次項</A>&gt;</CENTER>";
+      }
+
+      $txt.= "<hr size=\"0\">";
+      $txt.= "<CENTER>";
+      $txt.= "&lt;<A HREF=\"./$serial&bid=$bid&s=$s&p=$p&y=$y&m=$m&d=$d\">戻る</A>&gt;";
+      $txt.= "</CENTER>";
+    }
+  }
+
+  include "../../footer.inc.php";
+?>

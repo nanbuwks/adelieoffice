@@ -1,0 +1,193 @@
+<?php
+  /* 基本的な設定 */
+  include "../../config.inc.php";
+  include "../../lib.inc.php";
+
+  if (!empty($_REQUEST["search"]) && $_REQUEST["search"]=="t") {
+    if (!empty($_REQUEST["kwd"])) {
+      $kwd = textsafe(stripslashes($_REQUEST["kwd"]));
+      $headertext .= "Set-Cookie: folder_kwd=".urlencode($kwd)."; path=/;\n";
+    } else {
+      $kwd = "";
+      $headertext .= "Set-Cookie: folder_kwd=; path=/;\n";
+    }
+  } else {
+    $kwd = urldecode($_COOKIE["folder_kwd"]);
+  }
+
+  // リンク用テキストの設定
+  $linktext  = "<A HREF=\"../../\" CLASS=\"BAR\">トップページ</A> &gt; ";
+  $linktext .= "<A HREF=\"../\" CLASS=\"BAR\">Webフォルダ</A> &gt; ";
+  $linktext .= "<FONT COLOR=#FFFF00>ファイルの検索</FONT> ";
+
+  // 検索機能の使用?
+  $search = true;
+  $searchuri = "/folder/search/";
+
+  include "../../header.inc.php";
+  flush();
+
+  // 表示行数
+  $rows = 20;
+  if ($p=="") $p = 1;
+  //現在行(1〜rowcount)
+  if($rowpos<1) { $rowpos = 1; }
+
+  if (sizeof($MES) > 0) {
+    // エラー時
+    $pagetext .= "<CENTER><FONT COLOR=#FF0000><B>";
+    while (list($key,$val)=each($MES)) $pagetext .= $val."<BR>";
+    $pagetext .= "</TD></TR></TABLE></TD></TR></TABLE>";
+  } else {
+    // 通常
+
+    // 検索用キーワードへ調整
+#    $kwd = str_replace("\\","",$kwd);
+#    $kwd = str_replace("　"," ",$kwd);
+
+    $pagetext .= "
+<CENTER>
+<BR>
+  ";
+  // 通常処理
+  if ($kwd != "") {
+    $searchkeys = preg_split(" ",$kwd);
+    // 検索
+    $sql = "SELECT * FROM files WHERE ";
+    $key = "path <> '/trash' ";
+    while (list($seq,$word)=each($searchkeys)) {
+      if ($key != "") $key .= " and ";
+      $key .= "(filename ~* '".db_textsafe($word)."' or comment ~* '".db_textsafe($word)."' or pagetext ~* '".db_textsafe($word)."')";
+    }
+    $sql .= $key." ORDER BY filename,createstamp DESC";
+    $res = pg_exec($conn,$sql);
+    $cnt = pg_numrows($res);
+  } else {
+    $cnt = 0;
+  }
+  if ($cnt<1) {
+    // 該当無し
+    $pagetext .= "指定されたキーワードに該当するファイルはありませんでした";
+  } else {
+    // 該当あり
+    $s_row = ($p-1) * $rows;
+    $e_row = $p * $rows - 1;
+    if ($e_row>$cnt-1) {$e_row = $cnt-1;}
+    if ($cnt-1>$e_row) {$nextpage = true;}
+    $allpages = floor(($cnt-1)/$rows)+1;
+
+    $pagetext .= number_format($cnt)."件中 ".number_format($s_row+1)."〜".number_format($e_row+1)." 件目の表示中";
+
+    $pagetext .= "
+<TABLE BORDER=0 CELLSPACING=0 CELLPADDING=2>
+<TR BGCOLOR=#999999>
+<TH ALIGN=CENTER WIDTH=40><FONT COLOR=#FFFFFF>Icon</TH>
+<TH ALIGN=LEFT WIDTH=60%><FONT COLOR=#FFFFFF>&nbsp;フォルダ・ファイル名</TH>
+<TH ALIGN=RIGT WIDTH=70><FONT COLOR=#FFFFFF>サイズ&nbsp;</TH>
+<TH ALIGN=CENTER WIDTH=60><FONT COLOR=#FFFFFF>更新日</TH>
+</TR>
+";
+
+    for ($i=$s_row;$i<=$e_row;$i++) {
+#    for ($i=0;$i<$cnt;$i++) {
+      $row = pg_fetch_array($res,$i);
+      if (trim($row["filename"])!="" && file_exists($folderpath.$row["path"]."/".$row["filename"])) {
+        $filetime = filemtime($folderpath.$row["path"]."/".$row["filename"]);
+        $filesize = filesize($folderpath.$row["path"]."/".$row["filename"]);
+        $imageicon = ext_check($row["filename"]);
+
+        if ($td_flg == 0){
+          $bgcolor = "#FFFFFF"; $td_flg = 1;
+        } else {
+          $bgcolor = "#F0F0F0"; $td_flg = 0;
+        }
+
+        $pagetext .= "<TR BGCOLOR=$bgcolor>\n";
+        $pagetext .= "<TD ALIGN=CENTER>";
+        $pagetext .= "<A HREF=\"../download/?path=".urlencode($row["path"])."&name=".urlencode($row["filename"])."\">";
+        $pagetext .= "<IMG SRC=\"$imageicon\" ALT=\"".$row["filename"]."\" WIDTH=32 HEIGHT=32 BORDER=0></A></TD>\n";
+        $pagetext .= "<TD ALIGN=LEFT>";
+        $pagetext .= "&nbsp;<FONT STYLE=\"font-size:8pt\">".$row["path"]."</FONT><BR>\n";
+        $pagetext .= "&nbsp;&nbsp;<A HREF=\"../files/?path=".urlencode($row["path"])."&name=".urlencode($row["filename"])."\">".$row["filename"]."</A>";
+        $pagetext .= "</TD>\n";
+        $pagetext .= "<TD ALIGN=RIGHT><FONT STYLE=\"font-size:8pt\">";
+        if ($filesize<1024) {
+          $pagetext .= number_format($filesize)."Byte";
+        } elseif ($filesize<1024000) {
+          $pagetext .= number_format(ceil($filesize/1024))."KB";
+        } else {
+          if ($filesize % 1024000 == 0) {
+            $pagetext .= number_format(floor($filesize/1024000))."MB";
+          } else {
+            $pagetext .= number_format(floor($filesize/1024000)).".".str_pad(floor(($filesize % 1024000)/10000),2,"00",STR_PAD_LEFT)."MB";
+          }
+        }
+        $pagetext .= "&nbsp;</TD>\n";
+        $pagetext .= "<TD ALIGN=CENTER><FONT STYLE=\"font-size:8pt\">". date("y/m/d",$filetime)."<BR>".date("H:i:s",$filetime)."</TD>\n";
+        $pagetext .= "</TR>\n";
+      }
+      $pagetext .= "<TR><TD COLSPAN=4 HEIGHT=1 BGCOLOR=#999999></TD></TR>\n";
+    }
+
+    $pagetext .= "
+</TABLE>
+
+<FONT STYLE=\"line-height:16px\">
+";
+
+    if ($allpages>1) {
+      $r = 0;
+      $s_p = $p - 4;
+      $e_p = $p + 4;
+      if ($s_p<1) {
+        $r = 1-$s_p;
+        $s_p = $s_p + $r;
+        $e_p = $e_p + $r;
+      } elseif ($e_p>$allpages) {
+        $r = $e_p - $allpages;
+        $s_p = $s_p - $r;
+        $e_p = $e_p - $r;
+      }
+      if ($s_p < 1) $s_p = 1;
+      if ($e_p > $allpages) $e_p = $allpages;
+
+      if ($p>1) {
+        $pagetext .= "<A HREF=\"./?p=".($p-1)."&kwd=".urlencode($kwd)."\">";
+        $pagetext .= "前のページ";
+        $pagetext .= "</A>";
+      }
+      $pagetext .= "&nbsp;";
+
+      if ($s_p != 1) {
+        $pagetext .= "<A HREF=\"./?p=".($s_p-1)."&kwd=".urlencode($kwd)."\">&lt;</A>&nbsp;";
+      }
+
+      for ($i=$s_p;$i<=$e_p;$i++){
+        if ($p!=$i) {
+          $pagetext .= "[<A HREF=\"./?p=".$i."&kwd=".urlencode($kwd)."\">".$i."</A>]";
+        } else {
+          $pagetext .= "[".$i."]";
+        }
+        $pagetext .= "&nbsp;";
+      }
+
+      if ($e_p != $allpages) {
+        $pagetext .= "<A HREF=\"./?p=".($e_p+1)."&kwd=".urlencode($kwd)."\">&gt;</A>";
+      }
+
+      if ($nextpage) {
+        $pagetext .= "<A HREF=\"./?p=".($p+1)."&kwd=".urlencode($kwd)."\">";
+        $pagetext .= "次のページ";
+        $pagetext .= "</A>";
+      }
+      $pagetext .= "&nbsp;";
+    }
+  }
+
+  $pagetext .= "
+</CENTER>";
+
+  }
+  include "../../detail.inc.php";
+  include "../../footer.inc.php";
+?>

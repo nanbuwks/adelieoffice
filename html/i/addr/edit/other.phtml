@@ -1,0 +1,74 @@
+<?php
+	include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+	include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+	// header表示
+	$pagetitle = "住所録 その他情報";
+	include ("../../header.inc.php");
+
+	if (sizeof($MES)==0 && $s != "") {
+		$sql = "SELECT * FROM address WHERE seqno=$s";
+		$res = pg_query($conn,$sql);
+		if (pg_num_rows($res)==0) {
+			$MES[] = "指定された情報は既に削除されています";
+		} else {
+			$row = pg_fetch_array($res,0);
+			$kind_list = $row["kind_list"];
+			$comment   = mb_convert_kana($row["comment"],"ak");
+		}
+	}
+
+	if (sizeof($MES)>0) {
+		$txt.= "<BR>";
+		$txt.= "<CENTER><DIV ALIGN=CENTER><FONT COLOR=#FF0000><B>";
+		// エラーメッセージ出力
+		while (list($key,$val)=each($MES)) {
+			$txt.= $val."<BR>";
+		}
+		$txt.= "</FONT></DIV></CENTER>";
+		$txt.= "<FORM ACTION=\"../\" METHOD=POST>";
+		$txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=\"$ms\">";
+		$txt.= "<INPUT TYPE=HIDDEN NAME=s VALUE=\"$s\">";
+		$txt.= "<INPUT TYPE=SUBMIT VALUE=\"戻る\">";
+		$txt.= "</FORM>";
+	} else {
+		// 正常処理
+		$txt.= "<FORM ACTION=\"./upd_other.phtml\" METHOD=POST>";
+		$txt.= "<INPUT TYPE=HIDDEN NAME=\"dummy\" VALUE=\"ShiftJISコードで記述されています\">";
+		$txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=\"$ms\">";
+		$txt.= "<INPUT TYPE=HIDDEN NAME=s VALUE=\"$s\">";
+
+		$sql_kind = "SELECT * FROM address_kind ORDER BY seqno;";
+		$res_kind = pg_query($conn,$sql_kind);
+		$cnt_kind = pg_num_rows($res_kind);
+		if ($cnt_kind>0) {
+			$txt.= "分類項目<BR>";
+			if ($kind_list != "") {
+				$kinds = preg_split("(,|\t)",$kind_list);
+			}
+
+			$p = 1;
+			for ($i=0;$i<$cnt_kind;$i++) {
+				$row_kind = pg_fetch_array($res_kind,$i);
+				$txt.= "<INPUT TYPE=CHECKBOX NAME=kind[] VALUE=".$row_kind["key"]."";
+				if (sizeof($kinds)>0) {
+					reset($kinds);
+					while (list($key,$val)=each($kinds)) {
+						if ($val==$row_kind["key"]) {
+							$txt.= " CHECKED";
+							break;
+						}
+					}
+				}
+				$txt.= ">".mb_convert_kana($row_kind["value"],"k")."<br>";
+			}
+		}
+
+		$txt.= "<BR>コメント<BR>";
+		$txt.= "<TEXTAREA NAME=\"comment\" ROWS=3 ".inputmode("hiragana").">$comment</TEXTAREA><BR>";
+		$txt.= "<DIV ALIGN=CENTER><INPUT TYPE=SUBMIT VALUE=更新></DIV>";
+		$txt.= "</FORM><BR>";
+	}
+
+	include ("../../footer.inc.php");
+?>

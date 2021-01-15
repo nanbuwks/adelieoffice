@@ -1,0 +1,253 @@
+<?php
+	include ("../../config.inc.php"); include ("../../lib.inc.php");
+	include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+	if ($y=="" or $y==0 or !is_numeric($y) or $m=="" or $m==0 or !is_numeric($m) or $d=="" or $d==0 or !is_numeric($d)) {
+		$y = date("Y");
+		$m = date("m");
+		$d = date("d");
+	}
+	// ヘッダ表示
+	$pagetitle = "施設予約 ".$y."年".$m."月".$d."日(".$wname[date("w",$stamp)].")〜";
+
+	include ("../header.inc.php");
+
+	if ($login) {
+		if (!empty($y) || !empty($m) || !empty($d)){
+			if (checkdate($m,$d,$y)==false) {
+				$MES[] = "表示日の指定が正しくありません";
+			}
+		}
+
+		$stamp = mktime(0, 0, 0, $m, $d, $y);
+
+		$txt.= "<!--";
+
+		// エラーチェック
+		if (trim($login_id) == "") {
+			$MES[] = "ユーザーＩＤが正しくありません";
+		} else {
+			$sql = "select * from users where id='".$login_id."'";
+			$res = pg_query($conn, $sql);
+
+			if (pg_num_rows($res)<1) {
+				$MES[] = "ユーザーＩＤが正しくありません";
+			} else {
+				$row = pg_fetch_array($res,0);
+
+				$sql_secret = "select * from users where secretary_id='".$login_id."'";
+				$res_secret = pg_query($conn, $sql_secret);
+				$cnt_secret = pg_num_rows($res_secret);
+				if ($cnt_secret>0) {
+					for ($i=0;$i<$cnt_secret;$i++) {
+						$row_secret = pg_fetch_array($res_secret,$i);
+						$master_ids[] = $row_secret["id"];
+						if ($master_checkid != "") { $master_checkid .= ","; }
+						$master_checkid .= $row_secret["id"];
+					}
+				}
+			}
+		}
+		$txt.= "-->";
+	}
+
+	if ($rid=="") {
+		$MES[] = "施設ＩＤが正しくありません";
+	} else {
+		$sql = "SELECT * FROM rooms WHERE id='$rid'";
+		$res = pg_query($conn,$sql);
+		if (pg_num_rows($res)<1) {
+			$MES[] = "施設未登録";
+			$room_name = "不明または削除";
+		} else {
+			$row = pg_fetch_array($res,0);
+			$room_name = mb_convert_kana($row["name"],"ak","EUC-JP");
+			$manage_id = $row["manage_id"];
+			$group_ids = $row["view_group_ids"];
+			$user_ids  = $row["view_user_ids"];
+		}
+	}
+
+	if (sizeof($MES)>0) {
+		// エラーメッセージ出力
+		$txt.= "<FONT COLOR=#FF0000>";
+		while (list($key,$val)=each($MES)) {
+			$txt.= $val."<BR>";
+		}
+		$txt.= "</FONT>";
+	} else {
+		## 正常時
+		$txt.= "施設・設備予約&emojibuild;";
+		$txt.="<hr size=\"0\">";
+
+		// カラー、日付、祭日のセット
+		$startstamp = $stamp;
+		$endstamp   = $stamp+86400*6;
+
+		// 日付表示
+		$txt.= "";
+		if ($y!=date("Y")) {
+			$txt.= $y."年";
+		}
+		$txt.= $m."月".$d."日(".$wname[date("w",$startstamp)].")〜<BR>";
+
+		// ユーザー表示
+		$txt.= "<DIV ALIGN=RIGHT>";
+		$txt.= $room_name."⇒<A HREF=\"./$serial&sn=$sn&y=".$y."&m=".$m."&d=".$d."\">変更</A>";
+		$txt.= "</A></DIV>";
+
+		$txt.= "<hr size=\"0\">";
+
+		$txt.= "<CENTER>";
+$txt.= "&lt;<A HREF=\"./daily.phtml$serial&sn=$sn&rid=".$rid."&y=".date("Y",$startstamp-86400*7)."&m=".date("n",$startstamp-86400*7)."&d=".date("j",$startstamp-86400*7)."\">前週</A>&nbsp;";
+		$txt.= "<A HREF=\"./daily.phtml$serial&sn=$sn&rid=$rid&&y=".date("Y",$startstamp+86400*7)."&m=".date("n",$startstamp+86400*7)."&d=".date("j",$startstamp+86400*7)."\">次週</A>&gt;";
+		$txt.= "</CENTER>";
+
+		$backyear = date("Y",$startstamp);
+
+		for($n=0;$n<7;$n++){
+
+			$dispstamp = $startstamp+($n*86400);
+			$dispdate = date("Y-m-d",$dispstamp);
+
+			// 祭日チェック
+			$sql_holiday = "select * from holiday WHERE holiday='".date("Y-m-d",$dispstamp)."'";;
+			$res_holiday = pg_query($conn, $sql_holiday);
+			$cnt_holiday = pg_num_rows($res_holiday);
+			if ($cnt_holiday==0) {
+				$forecolor = $wcolor_title[date("w",$dispstamp)];
+			} else {
+				$forecolor = $wcolor_title[7];
+			}
+			$txt.= "<FONT COLOR=".$forecolor.">";
+			if (date("Y",$dispstamp) != $backyear) $txt.= date("Y",$dispstamp)."/";
+			$txt.= date("n",$dispstamp)."/";
+			$txt.= date("j",$dispstamp);
+			$txt.= "(".$wname[date("w",$dispstamp)].")";
+			$txt.= "</FONT>";
+
+			$txt.= "&nbsp;<a href=\"./add/$serial&rid=$rid&p=daily&ey=".date("Y",$dispstamp)."&em=".date("n",$dispstamp)."&ed=".date("j",$dispstamp)."\">&nemojipencil;</a>";
+			$txt.= "<BR>";
+
+			$sql = "SELECT seqno,user_id,date,timefrom,timeto,note FROM rooms_reserve ";
+			$sql .= "WHERE room_id='".$rid."'";
+			$sql .= " AND ";
+			$sql .= "date='".$dispdate."'";
+			$sql .= "ORDER BY coalesce(timefrom,'1970-04-14 00:00:00'),coalesce(timeto,'1970-04-14 00:00:00')";
+			$res = pg_query($conn,$sql);
+			$cnt = pg_num_rows($res);
+			if ($cnt==0) {
+			} else {
+				for($i=0;$i<$cnt;$i++){
+					$row = pg_fetch_array($res,$i);
+
+					if ($row["date"]==$dispdate and $row["timefrom"]!="") {
+						$t_f = datetime2timestamp($row["timefrom"]);
+						$s_f = date("H:i",$t_f);
+					} elseif($row["date"]!=$dispdate) {
+						$t_f = datetime2timestamp("1970/04/14 00:00:00");
+						$s_f = date("m/d",date2timestamp($row["date"]));
+						if ( $row["timefrom"]!="") {
+							$s_f .= " ".date("H:i",datetime2timestamp($t_f));
+						}
+					} else {
+						$s_f = "";
+						if ($row["timeto"]!="") {
+							$t_f = datetime2timestamp($row["timeto"])-7199; # 決まってなければ２時間引く
+						} else {
+							$t_f = datetime2timestamp("1970/04/14 0".$hour_from.":00:00");
+						}
+					}
+					if ($row["date"]==$dispdate and $row["timeto"]!="") {
+						$t_t = datetime2timestamp($row["timeto"]);
+						$s_t = date("H:i",$t_t);
+					} elseif($row["date"]!=$dispdate) {
+						$t_t = datetime2timestamp("1970/04/14 23:59:00");
+						$s_t = date("m/d",date2timestamp($row["date"]));
+						if ($row["timeto"]!="") {
+							$s_t .= " ".date("H:i",datetime2timestamp($t_t));
+						}
+					} else {
+						$s_t = "";
+						if ($row["timefrom"]!="") {
+							$t_t = datetime2timestamp($row["timefrom"])+7199; # 決まってなければ２時間足す
+						} else {
+							$t_t = datetime2timestamp("1970/04/14 0".$hour_from.":00:00");
+						}
+					}
+
+					$txt.= " ";
+					if ($row["timefrom"]!="") {
+						$txt.= $s_f;
+					}
+					if ($row["timefrom"]!="" || $row["timeto"]!="") {
+						$txt.= "〜";
+					}
+					if ($row["timeto"]!="") {
+						$txt.= $s_t;
+					}
+
+					$txt.= "<BR>";
+
+					$txt.= "・";
+
+					$txt.= "<A HREF=\"./add/$serial&sn=$sn&rid=$rid&p=daily&y=$y&m=$m&d=$d&s=".$row["seqno"]."\">";
+
+					$note = mb_convert_kana($row["note"],"ak","EUC-JP");
+					$note = preg_replace("/\x0D\x0A|\x0D|\x0A|\r\n|<BR>/","",$note);//改行カット
+
+					if (mb_strwidth($note)>=($charW*2)-1) {
+						$w_note = mb_strcut($note,0,$charW*2-2).".";
+					} else {
+						$w_note = $note;
+					}
+					$txt.= $w_note;
+					$txt.= "</A>";
+
+					$username = trim(get_first("users","name_ryaku","id='".$row["user_id"]."'",""));
+					if ($username=="") $user_name = trim(get_first("users","name","id='".$row["user_id"]."'","不明"));
+					$txt.= "(".$username.")";
+					$txt.= "<BR>";
+				}
+			}
+			$txt.= "<hr size=\"0\">";
+			$backyear = date("Y",$dispstamp);
+		}
+
+		$txt.= "<CENTER>";
+$txt.= "&lt;<A HREF=\"./daily.phtml$serial&sn=$sn&rid=".$rid."&y=".date("Y",$startstamp-86400*7)."&m=".date("n",$startstamp-86400*7)."&d=".date("j",$startstamp-86400*7)."\">前週</A>&nbsp;";
+		$txt.= "<A HREF=\"./daily.phtml$serial&sn=$sn&rid=$rid&&y=".date("Y",$startstamp+86400*7)."&m=".date("n",$startstamp+86400*7)."&d=".date("j",$startstamp+86400*7)."\">次週</A>&gt;";
+		$txt.= "</CENTER>";
+
+		$txt.= "<hr size=\"0\">";
+		$txt.= "<CENTER>";
+		$txt.= "&lt;<A HREF=\"./monthly.phtml".$serial."&sn=".$sn."&rid=".$rid."\">カレンダー</A>&gt;<BR>";
+		$txt.= "</CENTER>";
+
+		## 施設予約権限チェック
+		if (empty($manage_id) || $manage_id==$login_id || (empty($group_ids) && empty($user_ids))) {
+			$use = true;
+		} else {
+			if ($group_ids!="") {
+				$view_group_id = preg_split(",",$group_ids);
+				if (sizeof($view_group_id)>0) while (list($seq,$id)=each($view_group_id)) {
+					$chkcnt = get_count("users_entry","user_id='$login_id' AND group_id='$id'");
+					if ($chkcnt>0) { $use = true; break; }
+				}
+			}
+			if ($user_ids!="") {
+				$view_user_id = preg_split(",",$user_ids);
+				if (sizeof($view_user_id)>0) while (list($seq,$id)=each($view_user_id)) {
+					if ($login_id==$id) { $use = true; break; }
+				}
+			}
+		}
+		if ($use) {
+			$txt.= "<DIV ALIGN=\"RIGHT\">";
+			$txt.= "<A HREF=\"./add/".$serial."&rid=".$rid."&p=daily\" ".$accesskey."=0>&emoji0;新規予定</A>";
+			$txt.= "</DIV>";
+		}
+	}
+
+	include ("../footer.inc.php");
+?>

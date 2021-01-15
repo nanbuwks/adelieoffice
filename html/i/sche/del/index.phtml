@@ -1,0 +1,41 @@
+<?php
+	include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+	include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+	$pagetitle = "予定表 削除";
+	include ("../../header.inc.php");
+
+	## エラーチェック
+	if ($login) {
+		if (sizeof($MES)==0) {
+			$sql = "SELECT * FROM schedules where seqno=".$s;
+			$res = pg_query($conn,$sql);
+			if(pg_num_rows($res)==0){
+				$MES[] = "指定された情報は既に削除されています";
+			}
+			pg_free_result($res);
+		}
+
+		if (sizeof($MES)>0) {
+			## エラーメッセージ出力
+			$txt.= "<font color=\"#FF0000\">";
+			while (list($key,$val)=each($MES)) {
+				$txt.= $val."<br>";
+			}
+			$txt.= "</font>";
+		} else {
+			$txt.= "<form name=\"del\" action=\"./del.phtml\" method=\"get\">";
+			$txt.= "<input type=\"hidden\" name=\"ms\" value=\"".$ms."\">";
+			$txt.= "<input type=\"hidden\" name=\"s\" value=\"".$s."\">";
+			$txt.= "予定を削除します。よろしいですか？<br>";
+			$txt.= "<font color=\"#ff0000\">一度削除した予定を元に戻すことはできませんのでご注意ください。</font><br>";
+			$txt.= "<br>";
+			$txt.= "<div align=\"center\">";
+			$txt.= "<input type=\"submit\" value=\"実行\">";
+			$txt.= "</div>";
+			$txt.= "<br>";
+			$txt.= "</form>";
+		}
+	}
+	include ("../../footer.inc.php");
+?>

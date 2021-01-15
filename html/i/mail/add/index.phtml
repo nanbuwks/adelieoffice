@@ -1,0 +1,96 @@
+<?php
+  include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+  include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+  $pagetitle = "伝言メモ作成";
+  include ("../../header.inc.php");
+
+  if ($login) {
+    // 文字整形
+    if (!empty($_REQUEST["body"])) $body = sjis2euc($_REQUEST["body"]);
+    // エラー判定
+    // 1P目のチェック
+    if ($mode == "text") {
+      // 文字整形
+      $note = remove_emoji(textsafe(sjis2euc($note)));
+      if ($note == "") {
+        $MES[] = "内容を入力して下さい";
+      } elseif (strlen($note)>512) {
+        $MES[] = "内容が長すぎます。携帯版は512文字まで";
+        $note = mb_strcut($note,0,512);
+      }
+    }
+
+    if (sizeof($MES)>0) {
+      // エラー
+      $txt.= "<FONT color=#FF0000>";
+      while (list($key,$val)=each($MES)) {
+        $txt.= $val."<BR>";
+      }
+      $txt.= "</FONT>\n";
+    } else {
+      // 正常処理
+      $txt.= "<FORM ACTION=\"./share.phtml\" METHOD=POST>\n";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">\n";
+      if (!empty($to) && trim($to)!="") {
+        $txt.= "<INPUT TYPE=HIDDEN NAME=\"to\" VALUE=\"$to\">\n";
+      }
+      $txt.= "<INPUT TYPE=HIDDEN NAME=\"type\" VALUE=0>\n";
+
+      if ($mode == "reply") { // 返信時
+        if (!empty($s) && is_numeric($s)) {
+          $w_body = get_first("mail","body","seqno=$s","");
+          $w_bodys = preg_split("\n\r",mb_strcut($w_body,0,512));
+          while(list($seq,$text)=each($w_bodys)) {
+            $body = "&gt; ".$text."\n";
+          }
+        }
+      }
+
+      $txt.= "内容:<BR>";
+      $txt.= "<TEXTAREA NAME=\"body\" ROWS=3 ";
+      $txt.= inputmode("hiragana");
+      $txt.= ">";
+      $txt.= view_textsafe($body);
+      $txt.= "</TEXTAREA>";
+
+      $txt.= "優先度:<BR>";
+      for($i=3;$i>0;$i--) {
+        $txt.= "<INPUT TYPE=RADIO NAME=\"priority\" VALUE=\"".$i."\"";
+        if ($priority == $i) {
+          $txt.= " CHECKED";
+        }
+        if (empty($priority) and $i == 3){
+          $txt.= " CHECKED";
+        }
+        $txt.= ">";
+        $txt.= "".$priority_name[$i-1]."";
+      }
+      $txt.= "<BR>";
+
+      $txt.= "送信方法:<BR>";
+      if (trim($login_email) == "") {
+        $txt.= "<INPUT TYPE=RADIO NAME=\"send\" VALUE=\"0\" checked>メモ<BR>\n";
+        $txt.= "<hr size=\"0\">メールアドレスが登録されていないためメールでの送信はできません<BR>Webの個人設定ページでメールアドレスを登録するとメモを使って一般メール/携帯メールへの同時送信ができるようになります。\n";
+      } else {
+        if (empty($send) || !is_numeric($send)) $send=0;
+        $txt.= "<INPUT TYPE=RADIO NAME=\"send\" VALUE=0";
+        if ($send!=1 && $send!=2) $txt.= " CHECKED";
+        $txt.= ">メモのみ<BR>";
+        $txt.= "<INPUT TYPE=RADIO NAME=\"send\" VALUE=1";
+        if ($send==1) $txt.= " CHECKED";
+        $txt.= ">+メール ";
+        $txt.= "<INPUT TYPE=RADIO NAME=\"send\" VALUE=2";
+        if ($send==2) $txt.= " CHECKED";
+        $txt.= ">+携帯メール";
+      }
+
+      $txt.= "<CENTER>";
+      $txt.= "<INPUT TYPE=SUBMIT VALUE=\"次へ\">";
+      $txt.= "</CENTER>";
+
+      $txt.= "</FORM>\n";
+    }
+  }
+	include ("../../footer.inc.php");
+?>

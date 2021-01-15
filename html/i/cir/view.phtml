@@ -1,0 +1,158 @@
+<?php
+	include ("../../config.inc.php"); include ("../../lib.inc.php");
+	include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+	$pagetitle = "回覧の表示";
+	include ("../header.inc.php");
+
+	if ($login) {
+		## 変数処理＆エラーチェック
+		if(!isset($_REQUEST["n"]) || empty($_REQUEST["n"]) || !is_numeric($_REQUEST["n"])) {
+			$n = 1;
+		}
+		if(!isset($_GET["s"]) || empty($_GET["s"]) || !is_numeric($_GET["s"])) {
+			$DMES[] = "正しくない操作です";
+		} else {
+			$s = $_GET["s"];
+		}
+		if(!isset($_GET["type"]) || empty($_GET["type"])) {
+			$DMES[] = "正しくない操作です";
+		} else {
+			$type = $_GET["type"];
+		}
+
+		if (sizeof($DMES)==0) {
+			$sql = "SELECT * FROM circulas WHERE seqno=".$s;
+			$res = pg_query($conn,$sql);
+			$cnt = pg_num_rows($res);
+			if($cnt==0) {
+				$DMES[] = "指定された情報は既に削除されています";
+			} else {
+				$row         = pg_fetch_array($res,0);
+				$stamp       = datetime2timestamp($row["createstamp"]);
+				$user_id     = $row["user_id"];
+				$user_id_to  = $row["user_id_to"];
+				$subject     = mb_convert_kana($row["subject"],"ak");
+				$body        = mb_convert_kana($row["body"],"ak");
+				$result_sign = $row["result_sign"];
+			}
+		}
+
+		if (sizeof($DMES)==0) {
+			// 既読チェック処理
+			if (get_count("circulas_res","seqno=$s AND user_id='$login_id'")==0) {
+				$sql  = "INSERT INTO circulas_res (seqno,user_id,createstamp) VALUES ";
+				$sql .= "($s,'$login_id','now()')";
+			} else {
+				$sql  = "UPDATE circulas_res SET createstamp='now()' ";
+				$sql .= "WHERE seqno=$s AND user_id='$login_id'";
+			}
+			pg_query($conn,$sql);
+		}
+
+		if (sizeof($DMES)>0) {
+			// エラー表示
+			$txt.= "<FONT COLOR=#FF0000>";
+			for ($i=0;$i<sizeof($DMES);$i++) {
+				$txt.= $DMES[$i]."<br>\n";
+			}
+			$txt.= "</FONT>";
+		} else {
+			## 表示
+			$txt.= "受信:".date("m/d H:i",$stamp)."<br>";
+
+			$txt.= "発信:";
+			$sql_user = "SELECT * FROM users WHERE id='".$user_id."'";
+			$res_user = pg_query($conn,$sql_user);
+			$cnt_user = pg_num_rows($res_user);
+			if ($cnt_user==0) {
+				$txt.= "不明";
+			} else {
+				$row_user = pg_fetch_array($res_user,0);
+				$username = $row_user["name_ryaku"];
+				if (trim($username)=="") $username = $row_user["name"];
+
+				$usermail = $row_user["email_sub"];
+				if (trim($usermail)=="") $usermail = $row_user["email"];
+
+				$txt.= "<A HREF=\"../mem/detail.phtml$serial&sn=$sn&id=".$user_id."\">".$username."</A>";
+
+				if (trim($row_user["email_sub"])!="") {
+					$txt.= "<A HREF=\"mailto:".$row_user["email_sub"]."\">&emojimobilephone;</A>";
+				}
+				if (trim($row_user["email"])!="") {
+					$txt.= "<A HREF=\"mailto:".$row_user["email"]."\">&emojipc;</A>";
+				}
+			}
+			$txt.= "<BR>";
+
+			$txt.= "題名:".$subject."<br>";
+
+			$txt.= "状況:";
+			if ($result_sign=="t") {
+				$txt.= "回覧済み=&gt;";
+				$txt.= "<a href=\"./result.phtml$serial&sn=$sn&p=$p&type=$type&s=$s\">";
+				$txt.= "<font color=\"#ff0000\">状況</font>";
+				$txt.= "</a>";
+			} else {
+				$txt.= "回覧中=&gt;";
+				$txt.= "<a href=\"./result.phtml$serial&sn=$sn&p=$p&type=$type&s=$s\">";
+				$txt.= "<font color=\"#ff0000\">状況</font>";
+				$txt.= "</a>";
+			}
+			$txt.= "<br>";
+
+			$txt.= "<hr size=\"0\">";
+			// 本文の処理
+			$body = str_wiki(mb_convert_kana($row["body"],"ak"));
+			// ページに分割
+			$c=0;
+			while(true) {
+				$c++;
+				if ($c==1) {
+					$maxlen = 1350;
+				} else {
+					$maxlen = 1700;
+				}
+				$rowtext = mb_strcut($body,0,$maxlen,"EUC-JP");
+				$bodys[] = $rowtext;
+				$body = str_replace($rowtext,"",$body);
+				if ($body=="") break;
+				if (strlen($body)<$maxlen) {
+					$bodys[] = $body;
+					break;
+				}
+			}
+			if (sizeof($bodys)>1) {
+				$txt.= "<center>".$n."/".sizeof($bodys)."</center>\n";
+			}
+			$txt.= $bodys[$n-1];
+			if (sizeof($bodys)>$n) {
+				$txt.= "<DIV ALIGN=RIGHT>";
+				$txt.= " ⇒ <A HREF=\"./view.phtml$serial&sn=$sn&p=$p&type=$type&s=$s&n=".($n+1)."\">次頁へ</A>";
+				$txt.= "</DIV>";
+			}
+
+			// 回答済みデータの確認
+			$resultcount = get_count("circulas_ret","refno=$s AND user_id='$login_id'");
+
+			if ($user_id==$login_id || (preg_match("/(^|,)$login_id(,|$)/",$user_id_to) AND $resultcount == 0)) {
+				$txt.= "<FORM ACTION=\"./result.phtml\" METHOD=POST>\n";
+				$txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=\"$ms\">\n";
+				$txt.= "<INPUT TYPE=HIDDEN NAME=s VALUE=\"$s\">\n";
+				$txt.= "<INPUT TYPE=HIDDEN NAME=p VALUE=\"$p\">\n";
+				$txt.= "<INPUT TYPE=HIDDEN NAME=type VALUE=\"$type\">\n";
+				$txt.= "<CENTER>";
+				if ($user_id!=$login_id && $resultcount==0) {
+					$txt.= "<INPUT TYPE=SUBMIT VALUE=\"回答する\">";
+				}
+				if ($user_id==$login_id) {
+					$txt.= "&lt;<A HREF=\"./del/$serial&sn=$sn&p=$p&s=$s&type=send\">削除</A>&gt;\n";
+				}
+				$txt.= "</CENTER>\n";
+				$txt.= "</FORM>\n";
+			}
+		}
+	}
+	include ("../footer.inc.php");
+?>

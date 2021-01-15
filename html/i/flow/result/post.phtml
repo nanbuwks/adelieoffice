@@ -1,0 +1,105 @@
+<?php
+  include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+  include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+  if ($_POST["ok"]!="") $result = "t";
+  if ($_POST["ng"]!="") $result = "f";
+
+  if ($result=="t") {
+    $pagetitle = "ワークフローの承認";
+  } else {
+    $pagetitle = "ワークフローの否認";
+  }
+  include ("../../header.inc.php");
+
+  $note = textsafe(sjis2euc(remove_emoji($note)));
+
+  if ($login) {
+    // データ確認
+    if (empty($s)) {
+      $MES[] = "案件が選択されていません";
+    }
+    if (strlen($note)>1024) {
+      $MES[] = "コメントが長すぎます";
+    }
+    if (sizeof($MES)==0) {
+      $sql = "SELECT * FROM workflow WHERE (user_id='$login_id' or flow_ids~*'(^|,)$login_id(,|$)') AND seqno=$s";
+      $res = pg_query($conn,$sql);
+      $cnt = pg_num_rows($res);
+      if ($cnt==0) {
+        $MES[] = "指定された案件は登録されていないか既に削除されています";
+      } else {
+        $row = pg_fetch_array($res,0);
+        $subject = mb_convert_kana($row["subject"],"ak");
+        if ($row["retry_sign"]=="t") {
+          $subject .= "(再)";
+        }
+        $flow_ids = $row["flow_ids"];
+        $flow_ids_arr = preg_split(",",$flow_ids);
+        $flow_ids_cnt = sizeof($flow_ids_arr);
+        $sql_res = "SELECT * FROM workflow_ret WHERE refno=$s AND seqno=$r";
+        $res_res = pg_query($conn,$sql_res);
+        $cnt_res = pg_num_rows($res_res);
+        if (sizeof($MES)==0) {
+          // 案件結果データの整理
+          $sql = "DELETE FROM workflow_ret WHERE refno=$s AND seqno>=$r";
+          $res = pg_query($conn,$sql);
+          // 登録
+          $sql  = "INSERT INTO workflow_ret (";
+          $sql .= "refno,seqno,user_id,note,result_sign,recognize_sign,createstamp ";
+          $sql .= ") VALUES (";
+          $sql .= $s.",";
+          $sql .= $r.",";
+          $sql .= "'".$login_id ."',";
+          $sql .= "'".db_textsafe($note)."',";
+          $sql .= "'t',";
+          $sql .= "'$result',";
+          $sql .= "'now()'";
+          $sql .= ")";
+
+          $res = pg_query($conn, $sql);
+          if ($res == false || pg_affected_rows($res)<1) {
+            $MES[] = "案件の承認処理に失敗しました";
+          } else {
+            // 否認の時 || 全て回答済み？
+            if ($result=="f" || $r == $flow_ids_cnt) {
+              $sql = "UPDATE workflow SET ";
+              $sql .= "result_sign='$result' ";
+              if ($result=="t") {
+                $resno = get_last("workflow","result_seqno","",0)+1;
+                $sql .= ",result_seqno=$resno ";
+              }
+              $sql .= "WHERE seqno=$s";
+              $res = pg_query($conn, $sql);
+            }
+          }
+        }
+      }
+    }
+
+    if (sizeof($MES) > 0) {
+      // エラーメッセージ出力
+      $txt.= "<FONT color=#FF0000>";
+      while (list($key,$val)=each($MES)) {
+        $txt.= $val."<br>";
+      }
+      $txt.= "</FONT>";
+    } else {
+      // 正常時
+      $txt.= "<FORM ACTION=\"../\" METHOD=POST>";
+      $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+      $txt.= "<CENTER><BR>";
+      if ($result=="t") {
+        $txt.= "承認完了&emojiok;";
+      } else {
+        $txt.= "否認完了&emojing;";
+      }
+      $txt.= "<BR><BR>";
+      $txt.= "<INPUT TYPE=SUBMIT VALUE=\"一覧へ\">";
+      $txt.= "</CENTER>";
+      $txt.= "</FORM>";
+    }
+  }
+
+	include ("../../footer.inc.php");
+?>

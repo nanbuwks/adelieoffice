@@ -1,0 +1,110 @@
+<?php
+  include ("../../config.inc.php"); include ("../../lib.inc.php");
+  include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+  $pagetitle = "ワークフロー一覧";
+  include ("../header.inc.php");
+
+  if (empty($type)) $type="tonot";
+  if (empty($p) || !is_numeric($p)) $p = 1;
+
+  if ($login) {
+    // エラーチェック
+
+    if (sizeof($MES) > 0) {
+      // エラー表示
+      $txt.= "<FONT COLOR=#FF0000>";
+      for ($i=0;$i<sizeof($MES);$i++) {
+        $txt.= $MES[$i]."<br>\n";
+      }
+      $txt.= "</FONT>";
+    } else {
+      // ワークフロー一覧
+      if ($type=="tonot") {
+        $txt.= "未承認 ";
+        $sql = "SELECT workflow.*,t_workflow.status as status FROM workflow RIGHT JOIN (SELECT seqno,min(status) as status FROM t_workflow WHERE session_id='$sid' GROUP BY seqno) as t_workflow ON t_workflow.seqno = workflow.seqno ";
+        $sql .= "WHERE status='1' ";
+        $sql .= "ORDER BY workflow.createstamp DESC";
+      } elseif ($type=="tohas") {
+        $txt.= "承認済 ";
+        $sql = "SELECT workflow.*,t_workflow.status as status FROM workflow RIGHT JOIN (SELECT seqno,min(status) as status FROM t_workflow WHERE session_id='$sid' GROUP BY seqno) as t_workflow ON t_workflow.seqno = workflow.seqno ";
+        $sql .= "WHERE status='2' ";
+        $sql .= "ORDER BY workflow.createstamp DESC";
+      } elseif ($type=="tohas2") {
+        $txt.= "否認済 ";
+        $sql = "SELECT workflow.*,t_workflow.status as status FROM workflow RIGHT JOIN (SELECT seqno,min(status) as status FROM t_workflow WHERE session_id='$sid' GROUP BY seqno) as t_workflow ON t_workflow.seqno = workflow.seqno ";
+        $sql .= "WHERE status='3' ";
+        $sql .= "ORDER BY workflow.createstamp DESC";
+      } elseif ($type=="fromnot") {
+        $txt.= "決裁中 ";
+        $sql  = "SELECT * FROM workflow WHERE ";
+        $sql .= "user_id = '$login_id' AND result_sign is null ";
+        $sql .= "ORDER BY createstamp DESC";
+      } elseif ($type=="fromhas") {
+        $txt.= "決裁済 ";
+        $sql  = "SELECT * FROM workflow WHERE ";
+        $sql .= "user_id = '$login_id' AND not result_sign is null ";
+        $sql .= "ORDER BY createstamp DESC";
+      }
+      $txt.= "⇒<A HREF=\"./?ms=$ms&sn=$sn\">変更</A>";
+
+      $res = pg_query($conn,$sql);
+      $cnt = pg_num_rows($res);
+      $txt.= "<hr size=\"0\">\n";
+
+      if ($cnt == 0) {
+        $txt.= "案件はありません<BR>\n";
+      } else {
+        // ページ計算
+        $allpages = floor($cnt/$mobile_rows)+1;
+        if ($p>$allpages) $p = 1;
+        $s_row = ($p-1) * $mobile_rows;
+        $e_row = $p * $mobile_rows - 1;
+        if ($e_row>$cnt-1) {$e_row = $cnt-1;}
+        if ($cnt-1>$e_row) {$nextpage = true;}
+
+        // 前ページへ移動表示
+        if ($p>1) {
+          $txt.= "<CENTER>&lt;<A HREF=\"./list.phtml?ms=$ms&sn=$sn&type=$type&p=".($p-1)."\">前の".$mobile_rows."件</A>&gt;</CENTER>";
+        }
+
+        $c = 0;
+        for($i=$s_row;$i<=$e_row;$i++) {
+          $c++;
+          $row = pg_fetch_array($res,$i);
+
+          $txt.= "&emoji".$c.";";
+          $subject = mb_convert_kana($row["subject"],"ak"); //半角に
+          if ($row["retry_sign"]=="t") {
+            $subject .= "(再)";
+          }
+
+          $subject = preg_replace("/\x0D\x0A|\x0D|\x0A|\r\n|<BR>/","<BR>",$subject);//改行カット
+          if (strlen($subject)<=$charW*2*2-15) {
+            $subject = $subject;
+          } else {
+            if ($charW*2<10) $charW=10;
+            $subject = mb_strcut($subject,0,$charW*2*2-16).".";
+          }
+          $cnt_kidoku = get_first("workflow_res","seqno","seqno=".$row["seqno"]." AND user_id='$login_id'",0);
+          $txt.= "<A HREF=\"./view.phtml?ms=$ms&sn=$sn&p=$p&type=$type&s=".$row["seqno"]."\" $accesskey=$c>";
+          if ($cnt_kidoku==0) $txt.= "<FONT COLOR=#FF0000>";
+          $txt.= $subject;
+          if ($cnt_kidoku==0) $txt.= "</FONT>";
+          $txt.= "</A>";
+          $txt.= "(";
+          $txt.= date("m/d H:i",datetime2timestamp($row["createstamp"]));
+          $txt.= ")";
+
+          $txt.= "<BR>";
+        }
+        // 次ページへ移動表示
+        if ($nextpage) {
+          $txt.= "<CENTER>&lt;<A HREF=\"./list_recv.phtml?ms=$ms&sn=$sn&type=$type&p=".($p+1)."\">次の".$mobile_rows."件</A>&gt;</CENTER>\n";
+        }
+      }
+
+    }
+  }
+  include ("../footer.inc.php");
+?>

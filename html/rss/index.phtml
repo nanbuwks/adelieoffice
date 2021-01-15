@@ -1,0 +1,104 @@
+<?php
+include "../config.inc.php"; include "../lib.inc.php";
+include "../language.inc.php";
+
+#header("Date: ".gmdate("D, d M Y H:i:s",$lastupdatestamp)." GMT");
+#header("Last-Modified: ".gmdate("D, d M Y H:i:s",$lastupdatestamp)." GMT");
+header("Content-Type: application/xml; charset=utf-8");
+
+header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
+header("Last-Modified: ".gmdate("D, d M Y H:i:s")." GMT");
+header("Cache-Control: no-cache, must-revalidate, max_age=0");
+header("Pragma: no-cache");
+
+print "<?phpxml version=\"1.0\" encoding=\"UTF-8\" ?>\n";
+print "<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" xmlns=\"http://purl.org/rss/1.0/\" xmlns:content=\"http://purl.org/rss/1.0/modules/content/\" xmlns:taxo=\"http://purl.org/rss/1.0/modules/taxonomy/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:syn=\"http://purl.org/rss/1.0/modules/syndication/\" xmlns:admin=\"http://webns.net/mvcb/\">\n";
+
+// ログインチェック＆シリアルチェックにすること
+$userid = $_REQUEST["userid"];
+
+if (!empty($userid)) {
+#if (true) {
+	$pagetext .= "<channel rdf:about=\"".$access.$domain."/rss\">\n";
+	$pagetext .= "<title>".$system_name."</title>\n";
+	$pagetext .= "<dc:language>jp</dc:language>\n";
+	$pagetext .= "<!-- option tag -->\n";
+	$pagetext .= "<language>jp</language>\n";
+	$pagetext .= "<generator>AdelieOffice v2</generator>\n";
+	$pagetext .= "<copyright>Adelie Factory Inc.</copyright>\n";
+
+	$sql  = "SELECT * FROM schedules WHERE (user_id='".$userid."' OR sharelist ~* '(^|,|\t)".$userid."(,|\t|$)')";
+	$sql .= " and (datefrom>='".date("Y-m-d")."' OR (datefrom<='".date("Y-m-d")."' and dateto>='".date("Y-m-d")."'))";
+	$sql .= " ORDER BY datefrom,coalesce(timefrom,'1970-04-14 00:00:00'),dateto,coalesce(timeto,'1970-04-14 00:00:00')";
+#echo $sql;
+	$res = pg_query($conn,$sql);
+	$cnt = pg_num_rows($res);
+
+	$pagetext .= "<items>\n";
+	$pagetext .= "<rdf:Seq>\n";
+
+	if ($cnt>0) {
+		for ($i=0;$i<$cnt;$i++) {
+			$row = pg_fetch_array($res,$i);
+			$pagetext .= "<rdf:li rdf:resource=\"".$access.$domain."/schedule/add/?s=".$row["seqno"]."\" />\n";
+			if ($i>=9) break;
+		}
+
+		for ($i=0;$i<$cnt;$i++) {
+			$row = pg_fetch_array($res,$i);
+			$pagetext .= "<item rdf:about=\"".$access.$domain."\">\n";
+
+			$wtitle = get_first("schedule_kind","value","key='".$row["kind"]."'","その他");
+
+			$wtitle .= " ";
+			$wtitle .= date("n/j",date2timestamp($row["datefrom"]));
+			if ($row["timefrom"]!="") {
+				$wtitle .= " ";
+				$wtitle .= date("H:i",datetime2timestamp($row["timefrom"]));
+			}
+			if ($row["datefrom"]!=$row["dateto"] || $row["timefrom"]!="") {
+				$wtitle .= "〜";
+			}
+			if ($row["datefrom"]!=$row["dateto"]) {
+				$wtitle .= date("n/j",date2timestamp($row["dateto"]));
+			}
+			if ($row["timeto"]!="") {
+				if ($row["dateto"]!=$row["datefrom"]) {
+					$wtitle .= " ";
+				}
+				$wtitle .= date("H:i",datetime2timestamp($row["timeto"]));
+			}
+
+			$pagetext .= "<title>".$wtitle."</title>\n";
+
+			$pagetext .= "<datestart>".date("Y/m/d",date2timestamp($row["datefrom"]))."</datestart>\n";
+			if ($row["timefrom"]!="") {
+				$pagetext .= "<timestart>>".date("H:i:s",datetime2timestamp($row["timefrom"]))."</timestart>\n";
+			}
+			$pagetext .= "<dateend>".date("Y/m/d",date2timestamp($row["dateto"]))."</dateend>\n";
+			if ($row["timeto"]!="") {
+				$pagetext .= "<timeend>".date("H:i:s",datetime2timestamp($row["timeto"]))."</timeend>\n";
+			}
+
+			$pagetext .= "<link>".$access.$domain."/schedule/add/?s=".$row["seqno"]."</link>\n";
+		
+			#$pagetext .= "<description>".$str_body."</description>\n";
+
+			$createstamp = datetime2timestamp($row["createstamp"]);
+#			$pagetext .= "<pubdate>".gmdate("D, d M Y H:i:s",$createstamp)." ".substr(date("O",$createstamp),0,3).":00</pubdate>\n";
+#			$pagetext .= "<dc:date>".date("Y-m-d",$createstamp)."T".date("H:i:s",$createstamp).substr(date("O",$createstamp),0,3).":00</dc:date>\n";
+			$pagetext .= "</item>\n";
+
+			if ($i>=9) break;
+		}
+	}
+
+	$pagetext .= "</rdf:Seq>\n";
+	$pagetext .= "</items>\n";
+	$pagetext .= "</channel>\n";
+
+	print euc2utf($pagetext);
+
+}
+print "</rdf:RDF>";
+?>

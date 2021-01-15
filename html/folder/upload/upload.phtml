@@ -1,0 +1,361 @@
+<?php
+error_reporting(0);
+include "../../config.inc.php"; include "../../lib.inc.php";
+
+$linktext  = "<A HREF=\"../../\" CLASS=\"BAR\">トップページ</A> &gt; ";
+$linktext .= "<A HREF=\"../\" CLASS=\"BAR\">Webフォルダ</A> &gt; ";
+$linktext .= "<FONT COLOR=#FFFF00>ファイルのアップロード</FONT> ";
+
+// パラメーターセット
+$uppath  = urldecode($_POST["uppath"]);
+$comment = urldecode($_REQUEST["comment"]);
+
+include "../../login_check.inc.php";
+
+if ($login && sizeof($MES)==0) {
+	$comment_db = textsafe($comment);
+	
+	// カレントディレクトリチェック
+	if ($uppath=="") {
+		$DMES[] = "アップロードするフォルダ名を判断することが出来ません";
+	}
+	
+	// コメントチェック
+	if (strlen($comment)>8192) {
+		$DMES[] = "コメントが長すぎます(8198文字まで)";
+		$comment = mb_strcut($comment,0,8192);
+	}
+	
+	// ファイルチェック
+	if (sizeof($DMES)==0) {
+		$patharr = preg_split('/',$uppath);
+		#      $ret = exec('/usr/bin/du -b '.$folderpath.'*',$res);
+		#      $size = 0;
+		#      while(list($rowno,$rowtext)=each($res)) {
+		#        $cols = preg_split("\t",$rowtext);
+		#        $size += $cols[0];
+		#      }
+		if ($_POST["mode"]=="rename" || $_POST["mode"]=="overwrite") {
+			$uploadfile_name    = $_POST["uploadfile_name"];
+			$uploadfile_size    = $_POST["uploadfile_size"];
+			$uploadfile_tmpname = $_POST["uploadfile"];
+		} else {
+			$uploadfile_name    = $_FILES["uploadfile"]["name"];
+			$uploadfile_size    = $_FILES["uploadfile"]["size"];
+			$uploadfile_type    = $_FILES['uploadfile']['type'];
+			$uploadfile_tmpname = $_FILES['uploadfile']['tmp_name'];
+			$uploadfile_error   = $_FILES['uploadfile']['error'];
+		}
+		
+		if ($uploadfile_name=="") {
+			$DMES[] = "アップロードファイルが設定されていません。";
+		} else {
+			if ($uploadfile_size==0) {
+				$DMES[] = "アップロードファイルが正しくありません。";
+			} else {
+				if ($uploadfile_error != UPLOAD_ERR_OK) {
+					if ($uploadfile_error != UPLOAD_ERR_INI_SIZE) {
+						$DMES[] = "サーバーで設定されているファイルサイズを超えてアップロードしようとしました。";
+					} elseif ($uploadfile_error != UPLOAD_ERR_FORM_SIZE) {
+						$DMES[] = "アップロードするファイルは".floor($upload_max/1024/1024)."MB以内にサイズを調整して下さい。";
+					} elseif ($uploadfile_error != UPLOAD_ERR_PARTIAL) {
+						$DMES[] = "アップロードが回線状態などにより途中で中断しました。";
+					} elseif ($uploadfile_error != UPLOAD_ERR_NO_FILE) {
+						$DMES[] = "アップロードに失敗しました。";
+					} else {
+						$DMES[] = "アップロードが不明な原因で中断しました。";
+					}
+				} else {
+					if ($uploadfile_size > $upload_max) { // 最大200M
+					$DMES[] = "アップロードするファイルは".floor($upload_max/1024/1000)."MB以内にサイズを調整して下さい。";
+					} else {
+						$filename = stripslashes($uploadfile_name);
+						$pos_sepa = strrpos($filename, "\\");
+						$pos_dot  = strrpos($filename, ".");
+						if ($pos_sepa>0 || $pos_dot>0) {
+							if ($pos_sepa>0) {
+								$uploadfile_orgname = substr($filename,$pos_sepa + 1);
+							} else {
+								$uploadfile_orgname = $filename;
+							}
+							if ($pos_dot>0) {
+								$uploadfile_orgext  = substr($filename,$pos_dot + 1);
+							} else {
+								$uploadfile_orgext  = "";
+							}
+						} else {
+							$uploadfile_orgname = $filename;
+							$uploadfile_orgext  = "";
+						}
+					}
+				}
+			}
+		}
+		
+		if (sizeof($DMES)==0) {
+			if (!file_exists($folderpath.$uppath)) {
+				$DMES[] = "指定されたディレクトリ[$uppath]が見つかりません。<br>";
+			} else {
+				$fp = fopen($folderpath.$uppath,"r");
+				if ($fp == false) {
+					$DMES[] = "指定されたディレクトリを開くことができませんでした。<br>";
+				} else {
+					fclose($fp);
+				}
+			}
+		}
+		
+		if (sizeof($DMES)==0) {
+			if ($uploadfile_orgname != sjis2euc(euc2sjis($uploadfile_orgname))) {
+				$WMES[] = "ファイル名に利用できない文字が使用されています";
+				$mode = "rename";
+			} elseif (substr($uploadfile_orgname,0,1)==".") {
+				$DMES[] = ".[ドット]ではじまるファイル名は利用できません<BR>または漢字コードの変換に失敗しました。<BR>アップロードしたいファイル名を正しい拡張子を含めて入力してください。";
+				$mode = "rename";
+			} elseif (file_exists($folderpath.$uppath."/".$uploadfile_orgname)
+			|| file_exists($folderpath.$uppath."/.".$uploadfile_orgname)) {
+				if ($mode!="overwrite") {
+					#            $DMES[] = "アップロードファイルと同名のファイルが既に存在しています。";
+					$WMES[] = "アップロードファイルと同名のファイルが既に存在しています。";
+				}
+			} else {
+				$p = strrpos($uploadfile_orgname,".");
+				if ($p==0) { // 拡張子あり？
+				$DMES[] = "拡張子が指定されていません";
+				$mode = "rename";
+				}
+			}
+		}
+		
+		if (sizeof($DMES)==0) {
+      // 最大アップロード可能サイズ設定(デフォルト1000M)
+			$ftpmaxsize = get_first("admin","ftpsize","",1000);
+			if (file_exists($cmd_du)) {
+				$vals = preg_split(" |\t",exec($cmd_du." -sm ".$folderpath));
+				if (is_numeric($vals[0])) {
+					$mb = ceil(filesize($uploadfile_tmpname)/1024/1024);
+					if ($vals[0]+$mb>$ftpmaxsize) {
+						$DMES[] = "アップロード制限(最大".$ftpmaxsize."MB、現在".$vals[0]."MB)をを超えています。ファイルをアップロードすることはできません。";
+					}
+				}
+			}
+		}
+		
+		if (sizeof($WMES)==0 && sizeof($DMES)==0) {
+			$pagetext .= "<BR>\n";
+			if (sizeof($DMES)==0) {
+				//追加処理
+				$pagetext .= "<!--";
+				$fp = fopen($uploadfile_tmpname, "r");
+				$pagetext .= "-->";
+				if ($fp == false) {
+					$DMES[] = "アップロードファイルを正しく開けませんでした。";
+				} else {
+					fclose($fp);
+
+					// DBへファイル名、取得テキスト等をセット
+					// 既存レコードチェック
+					$sql = "SELECT * FROM files WHERE path='".db_textsafe($uppath)."' and filename='".db_textsafe($uploadfile_orgname)."';";
+					$res = pg_query($conn, $sql);
+					$cnt = pg_num_rows($res);
+					
+					if ($cnt==0){
+						// 新規
+						$seqno = get_last("files","seqno","",0)+1; // seqno採番
+						
+						$sql  = "INSERT INTO files (";
+						$sql .= "seqno,";
+						$sql .= "user_id,";
+						$sql .= "path,";
+						$sql .= "filename,";
+						if (trim($comment_db)!="") {
+							$sql .= "comment,";
+						}
+						$sql .= "pagetext,";
+						$sql .= "createstamp,";
+						$sql .= "updatestamp)";
+						$sql .= " VALUES (";
+						$sql .= $seqno.",";
+						$sql .= "'".$login_id."',";
+						$sql .= "'".db_textsafe($uppath)."',";
+						$sql .= "'".db_textsafe($uploadfile_orgname)."',";
+						if (trim($comment_db)!="") {
+							$sql .= "'".db_textsafe($comment_db)."',";
+						}
+						#$sql .= "'".mb_substr($pagetext_db,0,4096)." ',";
+						$sql .= "'".db_textsafe($pagetext_db)." ',";
+						$sql .= "'now',";
+						$sql .= "'now'";
+						$sql .= ")";
+						$res = pg_query($conn,$sql);
+						if ($res==false || pg_affected_rows($res)==0) {
+							$DMES[] = "登録に失敗しました。";
+						}
+					} else {
+						// 更新
+						$row = pg_fetch_array($res,0);
+						$seqno = $row["seqno"];
+						
+						### その物自身
+						$sql  = "UPDATE files SET ";
+						$sql .= "user_id='".$login_id."',";
+						$sql .= "path='".db_textsafe($uppath)."',";
+						$sql .= "filename='".db_textsafe($uploadfile_orgname)."',";
+						if (trim($comment_db)!="") {
+							$sql .= "comment='".$comment_db."',";
+						}
+						#$sql .= "pagetext='".mb_substr($pagetext_db,0,4096)."',";
+						$sql .= "pagetext='".$pagetext_db."',";
+						$sql .= "createstamp='now',";
+						$sql .= "updatestamp='now'";
+						$sql .= " where seqno=".$seqno."";
+						$res  = pg_query($conn,$sql);
+						
+						if ($res==false || pg_affected_rows($res)==0) {
+							$DMES[] = "更新に失敗しました";
+						}
+					}
+					
+					// 保存先フォルダへ移動
+					$pagetext .= "<CENTER>解析中</CENTER>";
+					$savefilename = $folderpath.$uppath."/".$uploadfile_orgname;
+					copy($uploadfile_tmpname,$savefilename);
+					unlink($uploadfile_tmpname);
+					
+					if (!file_exists($savefilename)) {
+						$DMES[] = "ファイルのコピーに失敗しました。";
+					} else {
+						// サムネイルの作成:門外不出(-o-メ) 2004'05/01 added by ori 
+			      clearstatcache();
+						if (file_exists($thumbnailpath) && file_exists($netpbmpath."/pnmscale")) {
+							$imageno = sprintf("%09d",$seqno);
+							$thumbnailfilename = $thumbnailpath."/".$imageno.".png";
+
+							if (file_exists($thumbnailfilename)) {
+								unlink($thumbnailfilename);
+							}
+
+					    set_time_limit(6000);
+
+			        $dotpos = strrpos($savefilename,".");
+		          if ($dotpos>0) {
+		            $ext = substr($savefilename,$dotpos + 1);
+								$cmd = "";
+								if (($ext=="jpeg" || $ext=="jpg" || $ext=="jpe") && file_exists($netpbmpath."/jpegtopnm")) {
+	                $cmd = $netpbmpath."/jpegtopnm < '$savefilename' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="gif" && file_exists($netpbmpath."/giftopnm")) {
+	                $cmd = $netpbmpath."/giftopnm < '$savefilename' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="png" && file_exists($netpbmpath."/pngtopnm")) {
+	                $cmd = $netpbmpath."/pngtopnm < '$savefilename' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="bmp" && file_exists($netpbmpath."/bmptoppm")) {
+	                $cmd = $netpbmpath."/bmptoppm < '$savefilename' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="rle" && file_exists($netpbmpath."/rletopnm")) {
+	                $cmd = $netpbmpath."/rletopnm < '$savefilename' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="pcx" && file_exists($netpbmpath."/pcxtoppm")) {
+	                $cmd = $netpbmpath."/pcxtoppm < '$savefilename' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif (($ext=="pict" || $ext=="pct" || $ext=="pic") && file_exists($netpbmpath."/pictoppm")) {
+	                $cmd = $netpbmpath."/picttoppm < '$savefilename' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="tga" && file_exists($netpbmpath."/tgatoppm")) {
+	                $cmd = $netpbmpath."/tgatoppm < '$savefilename' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="ico" && file_exists($netpbmpath."/winicontoppm")) {
+	                $cmd = $netpbmpath."/winicontoppm < '$savefilename' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="iff" && file_exists($netpbmpath."/ilbmtoppm")) {
+	                $cmd = $netpbmpath."/ilbmtoppm < '$savefilename' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif (($ext=="tiff" || $ext=="tif") && file_exists($netpbmpath."tifftopnm")) {
+	                $cmd = $netpbmpath."/tifftopnm < '$savefilename' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="raw" && file_exists($netpbmpath."/rawtoppm")) {
+	                $cmd = $netpbmpath."/rawtoppm < '$savefilename' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="tga" && file_exists($netpbmpath."/tgatoppm")) {
+	                $cmd = $netpbmpath."/tgatoppm < '$savefilename' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              } elseif ($ext=="xpm" && file_exists($netpbmpath."/xpmtoppm")) {
+	                $cmd = $netpbmpath."/xpmtoppm < '$savefilename' | ".$netpbmpath."/pnmscale -xysize $thumbnailwidth $thumbnailheight | ".$netpbmpath."/pnmtopng -interlace -downscale > '$thumbnailfilename'";
+	              }
+	              if ($cmd != "") $ret = exec($cmd);
+					      clearstatcache();
+								if (file_exists($thumbnailfilename) && filesize($thumbnailfilename)==0) {
+									unlink($thumbnailfilename);
+								}
+		          }
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	if (sizeof($DMES)>0) {
+		// エラー時
+		include "../../header.inc.php";
+		
+		$pagetext .= "<BR><CENTER>\n";
+		$pagetext .= "<FONT COLOR=#FF0000>\n";
+		while (list($key,$val)=each($DMES)) {
+			$pagetext .= $val."<BR>\n";
+		}
+		$pagetext .= "</FONT>\n";
+		$pagetext .= "<FORM ACTION=\"./\" METHOD=POST>\n";
+		$pagetext .= "<INPUT TYPE=HIDDEN NAME=\"path\" VALUE=\"$uppath\">\n";
+		$pagetext .= "<INPUT TYPE=HIDDEN NAME=\"uppath\" VALUE=\"$uppath\">\n";
+		$pagetext .= "<INPUT TYPE=HIDDEN NAME=\"comment\" VALUE=\"$comment\">\n";
+		$pagetext .= "<INPUT TYPE=SUBMIT VALUE=\"戻る\">\n";
+		$pagetext .= "</FORM>\n";
+		$pagetext .= "</CENTER>\n";
+		
+		include "../../detail.inc.php";
+		include "../../footer.inc.php";
+	} elseif (sizeof($WMES)>0) {
+		// ワーニング時
+		include "../../header.inc.php";
+		
+		$tempfilename =  tempnam($tmppath,"fol");
+		copy ($uploadfile,$tempfilename);
+		
+		$pagetext .= "\n<SCRIPT LANGUAGE=\"JavaScript\">\n";
+		$pagetext .= "<!--\n";
+		$pagetext .= "function rename(t) {\n";
+		$pagetext .= "  t.mode[1].checked = true;\n";
+		$pagetext .= "}\n";
+		$pagetext .= "//-->\n";
+		$pagetext .= "</SCRIPT>\n";
+		
+		$pagetext .= "<CENTER><BR><TABLE><TR><TD>\n";
+		$pagetext .= "<FORM ACTION=\"./upload.phtml\" METHOD=POST>\n";
+		$pagetext .= "<INPUT TYPE=HIDDEN NAME=\"uppath\" VALUE=\"$uppath\">\n";
+		$pagetext .= "<INPUT TYPE=HIDDEN NAME=\"comment\" VALUE=\"$comment\">\n";
+		$pagetext .= "<INPUT TYPE=HIDDEN NAME=\"MAX_FILE_SIZE\" VALUE=\"209715200\">\n";
+		$pagetext .= "<INPUT TYPE=HIDDEN NAME=\"uploadfile_size\" VALUE=\"$uploadfile_size\">\n";
+		$pagetext .= "<INPUT TYPE=HIDDEN NAME=\"uploadfile\" VALUE=\"$tempfilename\">\n";
+		$pagetext .= "<FONT COLOR=#FF0099>";
+		while (list($key,$val)=each($WMES)) {
+			$pagetext .= "$val<BR>";
+		}
+		$pagetext .= "</FONT>\n";
+		
+		if ($mode != "rename") {
+			$pagetext .= "<INPUT TYPE=RADIO NAME=\"mode\" VALUE=\"overwrite\" CHECKED tabindex=1>上書きして保存する<BR>\n";
+			$pagetext .= "<INPUT TYPE=RADIO NAME=\"mode\" VALUE=\"rename\" tabindex=2>名前を変更する<BR>\n";
+		}
+		
+		$pagetext .= "&nbsp;&nbsp;ファイル名 : <INPUT TYPE=TEXT NAME=\"uploadfile_name\" VALUE=\"".$uploadfile_name."\" SIZE=40 STYLE=\"width:220px;ime-mode:inactive\" tabindex=3 ";
+		if ($mode != "rename") {
+			$pagetext .= "ONCLICK=\"rename(this.form)\"";
+		}
+		$pagetext .= ">";
+		
+		$pagetext .= "<BR><BR>\n";
+		$pagetext .= "<CENTER>\n";
+		$pagetext .= "<INPUT TYPE=SUBMIT VALUE=\"ファイルのアップロード\">\n";
+		$pagetext .= "<INPUT TYPE=BUTTON onClick=history.back() VALUE=\"戻る\">\n";
+		$pagetext .= "</CENTER>\n";
+		$pagetext .= "</FORM>\n";
+		$pagetext .= "</TD></TR></TABLE></CENTER>\n";
+		
+		include "../../detail.inc.php";
+		include "../../footer.inc.php";
+	} else {
+		// 正常終了
+		$returl = "../";
+		Header("Location: ".$returl);
+	}
+}
+?>

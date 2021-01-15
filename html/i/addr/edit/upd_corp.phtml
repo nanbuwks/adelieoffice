@@ -1,0 +1,160 @@
+<?php
+	include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+	include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+	$pagetitle = "住所録 会社情報の更新";
+	include ("../../header.inc.php");
+
+	if ($login) {
+		// 前処理
+		if ($s == "") {
+			$MES[] = "操作方法が正しくありません";
+		} else {
+			if(!empty($corp_name)) {
+				$corp_name = textsafe(sjis2euc(remove_emoji($corp_name)));
+				$corp_name = mb_convert_kana($corp_name,"aK","EUC-JP");
+			}
+			if(!empty($corp_kana)) {
+				$corp_kana = textsafe(sjis2euc(remove_emoji($corp_kana)));
+				$corp_kana = mbereg_replace("　","",$corp_kana);
+				$corp_kana = mbereg_replace("・","",$corp_kana);
+				$corp_kana = mb_convert_kana($corp_kana,"aK","EUC-JP");
+			}
+			if(!empty($corp_zip)) {
+				$corp_zip = textsafe(sjis2euc(remove_emoji($corp_zip)));
+				$corp_zip = trim($corp_zip);
+			}
+			if(!empty($corp_state))  {
+				$corp_state = textsafe(sjis2euc(remove_emoji($corp_state)));
+				$corp_state = trim($corp_state);
+			}
+			if(!empty($corp_city))   {
+				$corp_city = textsafe(sjis2euc(remove_emoji($corp_city)));
+				$corp_city = mb_convert_kana($corp_city,"aK","EUC-JP");
+			}
+			if(!empty($corp_street)) {
+				$corp_street = textsafe(sjis2euc(remove_emoji($corp_street)));
+				$corp_street = mb_convert_kana($corp_street,"aK","EUC-JP");
+			}
+			if(!empty($corp_build))  {
+				$corp_build = textsafe(sjis2euc(remove_emoji($corp_build)));
+				$corp_build = mb_convert_kana($corp_build,"aK","EUC-JP");
+			}
+			if(!empty($corp_tel))    { $corp_tel    = textsafe(sjis2euc(remove_emoji($corp_tel))); }
+			if(!empty($corp_fax))    { $corp_fax    = textsafe(sjis2euc(remove_emoji($corp_fax))); }
+			if(!empty($corp_url))    { $corp_url    = textsafe(sjis2euc(remove_emoji($corp_url))); }
+			if(!empty($corp_email))  { $corp_email  = textsafe(sjis2euc(remove_emoji($corp_email))); }
+
+			if ($corp_url == "http://") {
+				$corp_url = "";
+			}
+
+			if ($corp_email == "@") {
+				$corp_email = "";
+			}
+
+			// エラーチェック
+			if ($corp_name != "") {
+				if (strlen($corp_name) > 80) {
+					$MES[]="会社名は40文字以内(半角80文字)で指定してください";
+				}
+			}
+			if ($corp_kana != "") {
+				if (strlen($corp_kana) > 80) {
+					$MES[]="会社名のカナヨミは40文字以内(半角80文字)で指定してください";
+				}
+			}
+			if ($corp_zip != "") {
+				if (strlen($corp_zip) > 8) {
+					$MES[]="郵便番号は8桁以内で指定してください";
+				}
+			}
+			if ($corp_city != "") {
+				if (strlen($corp_city) > 100) {
+					$MES[]="住所(市区郡)は50文字以内(半角100文字)で指定してください";
+				}
+			}
+			if ($corp_street != "") {
+				if (strlen($corp_street) > 100) {
+					$MES[]="住所(町村・番地)は50文字以内(半角100文字)で指定してください";
+				}
+			}
+			if ($corp_build != "") {
+				if (strlen($corp_build) > 100) {
+					$MES[]="住所(ビル・マンション)は50文字以内(半角100文字)で指定してください";
+				}
+			}
+			if ($corp_tel != "") {
+				if (strlen($corp_tel) > 20) {
+					$MES[]="電話番号は20桁以内で指定してください";
+				} else {
+					if (!is_tel($corp_tel)) {
+						$MES[]="電話番号は半角数字とハイフン[-]で指定してください";
+					}
+				}
+			}
+			if ($corp_fax != "") {
+				if (strlen($corp_fax)>20) {
+					$MES[]="FAX番号は20桁以内で指定してください";
+				} else {
+					if (!is_tel($corp_fax)) {
+						$MES[]="FAX番号は半角数字とハイフン[-]で指定してください";
+					}
+				}
+			}
+			if ($corp_url != "") {
+				if (strlen($corp_url)>200) {
+					$MES[]="ホームページアドレス(URL)は200文字以内で指定してください";
+				}
+			}
+			if ($corp_email != "") {
+				if (strlen($corp_email)>100) {
+					$MES[]="メールアドレスは100文字以内で指定してください";
+				} else {
+					if (!is_email($corp_email)) {
+						$MES[]="メールアドレスの指定が正しくありません";
+					}
+				}
+			}
+		}
+
+		// エラー無しならDB更新
+		if (sizeof($MES)==0) {
+			$sql  = "UPDATE address SET ";
+			$sql .= "corp_name='".db_textsafe($corp_name)."',";
+			$sql .= "corp_kana='".db_textsafe($corp_kana)."',";
+			$sql .= "corp_email='".db_textsafe($corp_email)."',";
+			$sql .= "corp_url='".db_textsafe($corp_url)."',";
+			$sql .= "corp_zip='".db_textsafe($corp_zip)."',";
+			$sql .= "corp_state='".db_textsafe($corp_state)."',";
+			$sql .= "corp_city='".db_textsafe($corp_city)."',";
+			$sql .= "corp_street='".db_textsafe($corp_street)."',";
+			$sql .= "corp_build='".db_textsafe($corp_build)."',";
+			$sql .= "corp_tel='".db_textsafe($corp_tel)."',";
+			$sql .= "corp_fax='".db_textsafe($corp_fax)."',";
+			$sql .= "updatestamp='now' ";
+			$sql .= "WHERE seqno=".$s;
+			$res = pg_query($conn,$sql);
+			if ($res==false) {
+				$MES[] = "更新に失敗しました。";
+			}
+		}
+		if (sizeof($MES)>0) {
+			// エラー時
+			$txt.= "<FONT COLOR=#FF0000>";
+			while (list($key,$val)=each($MES)) { $txt.= $val."<BR>"; }
+			$txt.= "</FONT>";
+		} else {
+			// 正常時
+			$txt.= "<FORM NAME=\"add\" ACTION=\"/i/addr/view.phtml\" METHOD=POST>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=\"$ms\">";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=seqno VALUE=\"$s\">";
+			$txt.= "<DIV ALIGN=CENTER><BR>";
+			$txt.= "&emojitel;更新完了<BR><BR>";
+			$txt.= "<INPUT TYPE=SUBMIT VALUE=\"戻る\">";
+			$txt.= "</DIV>";
+			$txt.= "</FORM><BR>";
+		}
+	}
+	include ("../../footer.inc.php");
+?>

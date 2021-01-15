@@ -1,0 +1,96 @@
+<?php
+	include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+	include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+	$pagetitle = "BBS投稿削除";
+	include ("../../header.inc.php");
+
+	if ($login) {
+## 関数ここから
+function removepostdata($serial) {
+	global $conn,$bid;
+	$sql = "SELECT seqno,serial FROM boards_post WHERE board_id='$bid' AND parent='$serial'";
+	$res = pg_query($conn,$sql);
+	$cnt = pg_num_rows($res);
+	if ($cnt > 0) {
+		for ($i=0;$i<$cnt;$i++) {
+			$row = pg_fetch_array($res,$i);
+			removepostdata($row["serial"]);
+			pg_query($conn,"DELETE FROM boards_post WHERE board_id='$bid' AND seqno=".$row["seqno"]);
+			pg_query($conn,"DELETE FROM boards_res WHERE board_id='$bid' AND seqno=".$row["seqno"]);
+		}
+	}
+}
+## 関数ここまで
+
+		if (empty($bid)) {
+			$MES[] = "ボードの指定が正しくありません";
+		}
+		if (sizeof($MES)==0) {
+			$board_admin_id = get_first("boards","admin_id","id='$bid'","");
+		}
+
+		if (empty($s) || !is_numeric($s)) {
+			$MES[] = "投稿の指定が正しくありません";
+		}
+		if (sizeof($MES)==0) {
+			$sql = "SELECT * FROM boards_post WHERE board_id='$bid' AND seqno=$s";
+			$res = pg_query($conn,$sql);
+			$cnt = pg_num_rows($res);
+			if ($cnt==0) {
+				$MES[] = "指定された投稿は既に削除されています";
+			}
+		}
+
+		if ($admin_sign!="t" && $board_admin_id!=$login_id) {
+			$MES[] = "掲示板もしくは全体管理者のみ削除することができます";
+		}
+
+		if (sizeof($MES)==0) {
+			// 削除実行
+			// シリアル値の事前取得
+			$serial = get_first("boards_post","serial","board_id='$bid' AND seqno=$s","");
+
+			// 発言の削除
+			$sql = "DELETE FROM boards_post WHERE board_id='$bid' AND seqno=$s";
+			$res = pg_query($conn,$sql);
+			$cnt = pg_affected_rows($res);
+			if ($cnt==0) {
+				$MES[] = "発言の削除処理に失敗しました";
+			}
+			// 既読情報の削除処理
+			$sql = "DELETE FROM boards_res WHERE board_id='$bid' AND seqno=$s";
+			$res = pg_query($conn,$sql);
+
+			// 発言の閲覧履歴削除
+			if (sizeof($MES)==0) {
+				if ($serial != "") {
+					removepostdata($serial);
+				}
+			}
+		}
+
+		if (sizeof($MES)>0) {
+			// エラー時
+			$txt.= "<font color=#FF0000>";
+			while (list($key,$val)=each($MES)) {
+				$txt.= $val."<br>";
+			}
+			$txt.= "</font>\n";
+		} else {
+			$returl = "/i/bbs/board.phtml";
+			$txt.= "<FORM ACTION=\"$returl\" METHOD=POST>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=$ms>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=bid VALUE=$bid>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=p VALUE=$p>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=q VALUE=$q>";
+			$txt.= "<BR><CENTER>";
+			$txt.= "削除完了<BR>";
+			$txt.= "<BR>";
+			$txt.= "<INPUT TYPE=SUBMIT VALUE=\"一覧へ\">";
+			$txt.= "</CENTER>\n";
+			$txt.= "</FORM>\n";
+		}
+	}
+	include ("../../footer.inc.php");
+?>

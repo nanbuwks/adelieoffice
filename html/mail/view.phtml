@@ -1,0 +1,236 @@
+<?php
+	include "../config.inc.php"; include "../lib.inc.php";
+	include "../language.inc.php";
+	
+	$linktext  = "<A HREF=\"../../\" CLASS=\"BAR\">トップページ</A> &gt; ";
+	$linktext .= "<A HREF=\"../\" CLASS=\"BAR\">伝言メモ</A> &gt; ";
+	
+	$linktext .= "<FONT COLOR=#FFFF00>メモの表示</FONT>";
+
+	include ("../header.inc.php");
+	include ("./menu.inc.php");
+
+  if ($login && sizeof($MES)==0) {
+    if (empty($sendtype)) { $sendtype = 1; }
+
+    $sql = "SELECT * FROM mail where seqno=".$n;
+    $res = pg_query($conn,$sql);
+    $cnt = pg_num_rows($res);
+    if ($cnt>0) {
+      $row = pg_fetch_array($res,0);
+      $seqno         = $res["seqno"];
+      $a             = $res["address_seqno"];
+      $priority      = $res["priority"];
+      $from          = $res["from"];
+      $to            = $res["to"];
+      $body          = $res["body"];
+      $createstamp   = $res["createstamp"];
+    } else {
+      $DMES[] = "指定されたメモは既に削除されています";
+    }
+
+    if (sizeof($DMES)>0) {
+      $pagetext .= "<BR>";
+      $pagetext .= "<TABLE BORDER=0 WIDTH=100%><FORM><TR><TD ALIGN=CENTER><FONT COLOR=#FF0000>";
+      $pagetext .= "<BR>";
+      while (list($key,$val)=each($DMES)) {
+        $pagetext .= $val."<BR>\n";
+      }
+      $pagetext .= "<BR>";
+      $pagetext .= "<INPUT TYPE=BUTTON VALUE=\"戻る\" ONCLICK=\"history.back()\">";
+
+      $pagetext .= "</TD></TR></FORM></TABLE>\n";
+    } else {
+      // 正常処理
+      $pagetext .= "<TABLE BORDER=0 CELLPADDING=0 CELLSPACING=0 ALIGN=CENTER><TR><TD ALIGN=CENTER>";
+
+      if (get_first("mail_res","seqno","seqno=$n AND user_id='$login_id'",0)==0) {
+        $sql = "INSERT INTO mail_res (seqno,user_id,createstamp) VALUES ($n,'$login_id','now')";
+        pg_query($conn,$sql); // 既読処理
+      }
+
+      $sql = "SELECT * FROM mail where seqno=".$n;
+      $res = pg_query($conn,$sql);
+      $cnt = pg_num_rows($res);
+
+      if ($cnt>0) {
+        $row = pg_fetch_array($res,0);
+
+        $body .= str_replace("\n","<BR>",textsafe($row["body"]));
+      }
+
+      $pagetext .= "
+<SCRIPT Language=\"JavaScript\">
+<!--
+function DelConf(seq) {
+  if (seq>0) {
+    if (confirm(\"削除しますか？\\n\\n注:一度削除した伝言を戻すことはできません\")) {
+      window.open(\"/mail/del/?p=$p&n=\"+seq,\"_self\");
+    }
+  }
+}
+function Send(seq,mode) {
+  if (seq>0) {
+    if (mode=='' || mode=='D' && confirm(\"削除しますか？\\n\\n注:一度削除した伝言を戻すことはできません\")) {
+      window.open(\"./?tousers=".$row["from"]."&s=\"+seq+\"&mode=\"+mode,\"_self\");
+    }
+  }
+}
+// -->
+</SCRIPT>";
+
+      $pagetext .= "<TR><TD VALIGN=TOP ALIGN=CENTER>";
+
+      $pagetext .= "<TABLE border=0 cellspacing=1 cellpadding=4 BGCOLOR=#666666 WIDTH=480>";
+
+      $pagetext .= "<TR BGCOLOR=CCCCCC><TD BGCOLOR=$td_back_left>";
+
+      $pagetext .= "差出人:&nbsp;";
+			$mailfroms = preg_split(",",$row["from"]);
+			if (sizeof($mailfroms)>0) {
+				for ($j=0;$j<sizeof($mailfroms);$j++) {
+					$mailaddr = $mailfroms[$j];
+					if (trim($mailaddr)!="") {
+						$sql_user = "SELECT * FROM users WHERE id='".$mailaddr."'";
+						$res_user = pg_query($conn,$sql_user);
+						$cnt_user = pg_num_rows($res_user);
+						if ($cnt_user>0) {
+							// ユーザーID時
+							$row_user = pg_fetch_array($res_user,0);
+							$pagetext .= "<A HREF=\"../member/?id=".$mailaddr."\">".$row_user["name_ryaku"]."</A>";
+							if ($row_user["email"]!="") {
+								$pagetext .= " &lt;<A HREF=\"mailto:".$row_user["email"]."\">".$row_user["email"]."</A>&gt;";
+							}
+						} else {
+							// ユーザー以外時
+							$pagetext .= str_link($mailaddr);
+						}
+						if (($j+1)<sizeof($mailtos)) $pagetext .= ", ";
+					}
+				}
+			}
+			$pagetext .= "<BR>";
+			
+      $pagetext .= "宛先:&nbsp;";
+			$mailtos = preg_split(",",$row["to"]);
+			if (sizeof($mailtos)>0) {
+				for ($j=0;$j<sizeof($mailtos);$j++) {
+					$mailaddr = $mailtos[$j];
+					if (trim($mailaddr)!="") {
+						$sql_user = "SELECT * FROM users WHERE id='".$mailaddr."'";
+						$res_user = pg_query($conn,$sql_user);
+						$cnt_user = pg_num_rows($res_user);
+						if ($cnt_user>0) {
+							// ユーザーID時
+							$row_user = pg_fetch_array($res_user,0);
+							$pagetext .= "<A HREF=\"../member/?id=".$mailaddr."\">".$row_user["name_ryaku"]."</A>";
+							if ($row_user["email"]!="") {
+								$pagetext .= " &lt;<A HREF=\"mailto:".$row_user["email"]."\">".$row_user["email"]."</A>&gt;";
+							}
+						} else {
+							// ユーザー以外時
+							$pagetext .= str_link($mailaddr);
+						}
+						if (($j+1)<sizeof($mailtos)) $pagetext .= ", ";
+					}
+				}
+			}
+			$pagetext .= "<BR>";
+
+      if ($row["priority"]==3) {
+#        $pagetext .= "<FONT COLOR=#FFEE00>●</FONT>&nbsp;普通";
+      } elseif ($row["priority"]==2) {
+        $pagetext .= "&nbsp;<FONT COLOR=#FF6600>●</FONT>";
+      } else {
+        $pagetext .= "&nbsp;<FONT COLOR=#FF0000>●</FONT>";
+      }
+#      $pagetext .= date("Y/n/j",datetime2timestamp(($row["createstamp"])));
+#      $pagetext .= date("H:i",datetime2timestamp(($row["createstamp"])));
+      $pagetext .= "</TD></TR>";
+
+      $pagetext .= "<TR BGCOLOR=CCCCCC><TD BGCOLOR=$td_back_left>";
+#      $pagetext .= "<DIV ALIGN=RIGHT>";
+      $pagetext .= "日時:&nbsp;";
+      $pagetext .= date("Y/m/d",datetime2timestamp($row["createstamp"]));
+      $pagetext .= "(";
+      $pagetext .= $wname[date("w",datetime2timestamp($row["createstamp"]))];
+      $pagetext .= ") ";
+      $pagetext .= date("H:i",datetime2timestamp($row["createstamp"]));
+      $pagetext .= "<BR>";
+#      $pagetext .= "</DIV>";
+      $pagetext .= "表題:&nbsp;";
+			if ($row["subject"]!="") {
+				$pagetext .= view_textsafe($row["subject"]);
+			} else {
+				$pagetext .= "(表題なし)";
+			}
+      $pagetext .= "<BR>";
+      $pagetext .= "</TD></TR>";
+
+      $pagetext .= "<TR BGCOLOR=CCCCCC><TD ALIGN=LEFT BGCOLOR=$td_back>";
+
+      if ($row["address_seqno"]>0) {
+        $sql_addr = "SELECT * FROM address WHERE seqno=".$row["address_seqno"];
+        $res_addr = pg_query($conn,$sql_addr);
+        $cnt_addr = pg_num_rows($res_addr);
+        if ($cnt_addr>0) {
+          $row_addr = pg_fetch_array($res_addr,0);
+          $pagetext .= "<A HREF=\"../../address/edit/?s=".$row["address_seqno"]."\">";
+          $corp_name = $row_addr["corp_name"];
+          $corp_name = ereg_replace("株式会社","",$corp_name);
+          $corp_name = ereg_replace("有限会社","",$corp_name);
+          $corp_name = ereg_replace("合資会社","",$corp_name);
+          $corp_name = ereg_replace("合名会社","",$corp_name);
+          $corp_name = ereg_replace("財団法人","",$corp_name);
+          $corp_name = ereg_replace("社団法人","",$corp_name);
+          $corp_name = ereg_replace("学校法人","",$corp_name);
+          $corp_name = ereg_replace("宗教法人","",$corp_name);
+          $corp_name = ereg_replace("特定非営利活動法人","",$corp_name);
+          $corp_name = ereg_replace("NPO法人","",$corp_name);
+          $corp_name = ereg_replace("社会福祉法人","",$corp_name);
+          $corp_name = ereg_replace("公益法人","",$corp_name);
+          $corp_name = ereg_replace("医療法人","",$corp_name);
+          $corp_name = ereg_replace("事業協同組合","",$corp_name);
+          $corp_name = ereg_replace("協同組合連合会","",$corp_name);
+          $corp_name = ereg_replace("企業組合","",$corp_name);
+          $corp_name = ereg_replace("協業組合","",$corp_name);
+          $corp_name = ereg_replace("振興組合","",$corp_name);
+          $corp_name = trim($corp_name);
+          $corp_name = eregi_replace("　","",$corp_name);
+          $pagetext .= $corp_name." ";
+          $pagetext .= $row_addr["person_name"];
+          $pagetext .= "</A> 様より<BR>";
+        }
+      }
+
+      $pagetext .= "<TT>";
+      $pagetext .= $body."<BR>";
+      $pagetext .= "</TT>";
+
+      $pagetext .= "</TD></TR></TABLE>";
+
+      $pagetext .= "<DIV ALIGN=RIGHT>";
+      $pagetext .= "<FONT COLOR=#555555>受信日時 : ";
+      $pagetext .= date("Y年m月d日 H時i分",datetime2timestamp($row["createstamp"]));
+      $pagetext .= "</DIV>";
+
+      $pagetext .= "<TABLE BORDER=0 CELLPADDING=5 CELLSPACING=0 ALIGN=CENTER><TR><FORM>";
+
+      if ($row["from"] != $login_id) {
+        $pagetext .= "
+<TD><INPUT TYPE=button VALUE=\"返信\" onclick=\"Send($n,'')\" style=\"width:100px;background-color:#CCCCFF\"></TD>
+<TD><INPUT TYPE=button VALUE=\"返信+削除\" onclick=\"Send($n,'D')\" style=\"width:100px;background-color:#FFCCFF\"></TD>";
+      }
+
+      $pagetext .= "
+<TD><INPUT TYPE=button VALUE=\"削除\" onclick=\"DelConf($n)\" style=\"width:60px;background-color:#FFCCCC\"></TD>
+</FORM></TR></TABLE>";
+
+#      $pagetext .= "</TD></TR></TABLE>";
+#      $pagetext .= "</TD></TR></TABLE>";
+    }
+    $pagetext .= "</TD></TR></TABLE>";
+  }
+  include "../detail.inc.php";
+  include "../footer.inc.php";
+?>

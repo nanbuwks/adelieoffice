@@ -1,0 +1,43 @@
+<?php
+  include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+  include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+  $pagetitle = "備忘録の削除";
+  include "../../header.inc.php";
+
+  // 削除処理
+  if (sizeof($MES)==0) {
+    $sql = "SELECT * FROM todos WHERE user_id='".$login_id."' and seqno=".$s;
+    $res = pg_query($conn,$sql);
+    if(pg_num_rows($res)==0){
+      $MES[] = "指定された情報は既に削除されています";
+    } else {
+      $sql = "DELETE FROM todos WHERE user_id='".$login_id."' AND seqno=".$s;
+      $res = pg_query($conn,$sql);
+      if($res==false){
+        $MES[] = "削除に失敗しました";
+      }
+    }
+  }
+
+  if (sizeof($MES)>0) {
+    // エラーメッセージ出力
+    $txt.= "<FONT COLOR=#FF0000>\n";
+    while (list($key,$val)=each($MES)) {
+      $txt.= $val."<BR>";
+    }
+    $txt.= "</FONT>\n";
+  } else {
+    // 正常時
+    $txt.= "<FORM ACTION=\"/i/todo/\" METHOD=POST>";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"$p\">";
+    $txt.= "<DIV ALIGN=CENTER><BR>";
+    $txt.= "削除完了&emojibulb;<BR><BR>";
+    $txt.= "<INPUT TYPE=SUBMIT VALUE=\"戻る\">";
+    $txt.= "</DIV>";
+    $txt.= "</FORM><BR>";
+  }
+
+  include "../../footer.inc.php";
+?>

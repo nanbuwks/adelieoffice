@@ -1,0 +1,225 @@
+<?php
+	include ("../../config.inc.php"); include ("../../lib.inc.php");
+	include ("../agent.inc.php"); include ("../emoji.inc.php");
+
+	## ヘッダ準備
+	$pagetitle = "住所録 ";
+	if ($seqno!="") {
+		$sql = "SELECT * FROM address WHERE seqno=".$seqno;
+		$res = pg_query($conn,$sql);
+		if(pg_num_rows($res) > 0) {
+			$row = pg_fetch_array($res,0);
+			$corp_name = $row["corp_name"];
+			$corp_name = ereg_replace("株式会社","",$corp_name);
+			$corp_name = ereg_replace("有限会社","",$corp_name);
+			$corp_name = ereg_replace("合資会社","",$corp_name);
+			$corp_name = ereg_replace("合名会社","",$corp_name);
+			$corp_name = ereg_replace("財団法人","",$corp_name);
+			$corp_name = ereg_replace("社団法人","",$corp_name);
+			$corp_name = ereg_replace("学校法人","",$corp_name);
+			$corp_name = ereg_replace("宗教法人","",$corp_name);
+			$corp_name = ereg_replace("特定非営利活動法人","",$corp_name);
+			$corp_name = ereg_replace("NPO法人","",$corp_name);
+			$corp_name = ereg_replace("社会福祉法人","",$corp_name);
+			$corp_name = ereg_replace("公益法人","",$corp_name);
+			$corp_name = ereg_replace("医療法人","",$corp_name);
+			$corp_name = ereg_replace("事業協同組合","",$corp_name);
+			$corp_name = ereg_replace("協同組合連合会","",$corp_name);
+			$corp_name = ereg_replace("企業組合","",$corp_name);
+			$corp_name = ereg_replace("協業組合","",$corp_name);
+			$corp_name = ereg_replace("振興組合","",$corp_name);
+			$corp_name = trim($corp_name);
+			$corp_name = mberegi_replace("　","",$corp_name);
+			$pagetitle .= $corp_name;
+			$pagetitle .= " ".$row["person_name"];
+		}
+	}
+
+	// ヘッダ表示
+	include ("../header.inc.php");
+
+	if ($login) {
+		if (sizeof($MES) > 0) {
+			for ($i=0;$i<sizeof($MES);$i++) {
+				$txt.= $MES[$i]."<BR>";
+			}
+			pg_free_result($res);
+			$txt.= "エラー";
+		} else {
+			// 表示
+			$sql = "SELECT * FROM address WHERE seqno=".$seqno;
+			$res = pg_query($conn,$sql);
+			if(pg_num_rows($res) == 0) {
+				$MES[] = "指定された情報は既に削除されています";
+			} else {
+				$row = pg_fetch_array($res,0);
+
+				$txt.= "●会社情報 <A HREF=\"./edit/corp.phtml".$serial."&s=".$row["seqno"]."\">&gt;変更</A><BR>";
+
+				if ($row["corp_name"] != "" || $row["corp_kana"] != "" || $row["corp_zip"] != "" || $row["corp_state"] != "" || $row["corp_tel"] != "") {
+
+					if ($row["corp_name"] != "")    $txt.= mb_convert_kana($row["corp_name"],"ka")."<BR>";
+					if ($row["corp_zip"] != "")     $txt.= "〒".$row["corp_zip"]."<BR>";
+					if ($row["corp_state"] != "")   $txt.= mb_convert_kana($row["corp_state"],"ka");
+					if ($row["corp_city"] != "")    $txt.= mb_convert_kana($row["corp_city"],"ka")."<BR>";
+					if ($row["corp_street"] != "")  $txt.= mb_convert_kana($row["corp_street"],"ka")."<BR>";
+					if ($row["corp_build"] != "")   $txt.= mb_convert_kana($row["corp_build"],"ka")."<BR>";
+					if ($row["corp_tel"] != "") {
+						$txt.= "&emojibuild;℡:";
+						$corp_shortname = $row["corp_name"];
+						$corp_shortname = ereg_replace("株式会社","",$corp_shortname);
+						$corp_shortname = ereg_replace("有限会社","",$corp_shortname);
+						$corp_shortname = ereg_replace("合資会社","",$corp_shortname);
+						$corp_shortname = ereg_replace("合名会社","",$corp_shortname);
+						$corp_shortname = ereg_replace("財団法人","",$corp_shortname);
+						$corp_shortname = ereg_replace("社団法人","",$corp_shortname);
+						$corp_shortname = ereg_replace("学校法人","",$corp_shortname);
+						$corp_shortname = ereg_replace("宗教法人","",$corp_shortname);
+						$corp_shortname = ereg_replace("特定非営利活動法人","",$corp_shortname);
+						$corp_shortname = ereg_replace("NPO法人","",$corp_shortname);
+						$corp_shortname = ereg_replace("社会福祉法人","",$corp_shortname);
+						$corp_shortname = ereg_replace("公益法人","",$corp_shortname);
+						$corp_shortname = ereg_replace("医療法人","",$corp_shortname);
+						$corp_shortname = ereg_replace("事業協同組合","",$corp_shortname);
+						$corp_shortname = ereg_replace("協同組合連合会","",$corp_shortname);
+						$corp_shortname = ereg_replace("企業組合","",$corp_shortname);
+						$corp_shortname = ereg_replace("協業組合","",$corp_shortname);
+						$corp_shortname = ereg_replace("振興組合","",$corp_shortname);
+						$corp_shortname = eregi_replace("　","",$corp_shortname);
+						$corp_shortname = trim($corp_shortname);
+
+						$txt.= "<A href=\"tel:".$row["corp_tel"]."\">";
+						$txt.= $row["corp_tel"]."</A>";
+						$txt.= "<BR>";
+					}
+					if ($row["corp_fax"] != "") {
+						$txt.= "&emojibuild;&emojifax;:";
+						$txt.= $row["corp_fax"]."<BR>";
+					}
+
+					if ($row["corp_url"] != "") {
+						$txt.= "&emojibuild;HP:";
+						$txt.= "<A HREF=\"".$row["corp_url"]."\">".$row["corp_url"]."</A><BR>";
+					}
+					if ($row["corp_email"] != "") {
+						$txt.= "&emojibuild;&emojimail;:";
+						$txt.= "<A HREF=\"mailto:".$row["corp_email"]."\">".$row["corp_email"]."</A><BR>";
+					}
+				} else {
+					$txt.= "未登録<BR>";
+				}
+
+				$txt.= "<hr size=\"0\">";
+
+				$txt.= "●個人情報 <A HREF=\"./edit/person.phtml".$serial."&s=".$row["seqno"]."\">&gt;変更</A><BR>";
+
+				if ($row["person_depa"] != "") {
+					$txt.= mb_convert_kana($row["person_depa"],"ka")."";
+				}
+				if ($row["person_depa"] != "" && $row["person_post"] != "") {
+					$txt.= " ";
+				}
+				if ($row["person_post"] != "") {
+					$txt.= mb_convert_kana($row["person_post"],"ka")."";
+				}
+				if ($row["person_depa"] != "" && $row["person_post"] != "") {
+					$txt.= "<BR>";
+				}
+
+				$txt.= mb_convert_kana($row["person_name"],"ka");
+
+				if ($row["person_kana"] != "")  $txt.= "(".mb_convert_kana($row["person_kana"],"kha").")";
+				$txt.= "<BR>";
+
+				if ($row["person_dialin"] != "") {
+					if (strlen($row["person_dialin"])>7) {
+						$txt.= "直通:";
+						$txt.= "<A HREF=\"tel:".$row["person_dialin"]."\">".$row["person_dialin"]."</A><BR>";
+					} else {
+						$txt.= "内線:".$row["person_dialinl"]."<BR>";
+					}
+				}
+				if ($row["person_handy"] != "") {
+					$txt.= "&emojimobilephone;℡:";
+					$txt.= "<A href=\"tel:".$row["person_handy"]."\">";
+					$txt.= $row["person_handy"]."</A>";
+					$txt.= "<BR>";
+				}
+				if ($row["person_email"] != "") {
+					$txt.= "&emojipc;&emojimail;:";
+					$txt.= "<A HREF=\"mailto:".$row["person_email"]."\">".$row["person_email"]."</A><BR>";
+				}
+				if ($row["person_email2"] != "") {
+					$txt.= "&emojimobilephone;&emojimail;:";
+					$txt.= "<A HREF=\"mailto:".$row["person_email2"]."\">".$row["person_email2"]."</A><BR>";
+				}
+				if ($row["person_birthday"] != "") {
+					$birthday = getdate(date2timestamp($row["person_birthday"]));
+					$today = getdate();
+
+					$birthstamp = mktime(0,0,0,$birthday["mon"],$birthday["mday"],$birthday["year"]);
+					$todaystamp = mktime(0,0,0,$today["mon"],$today["mday"],$today["year"]);
+
+					$txt.= "誕生日:".date("Y/m/d",$birthstamp);
+					$txt.= " ";
+					$yearold = $today["year"]-$birthday["year"];
+					if ($todaystamp<$birthstamp) {
+						$yearold = $yearold - 1;
+					}
+					$txt.= $yearold."歳";
+					$txt.= "<BR>";
+				}
+				if ($row["person_zip"] != "")     $txt.= "〒".$row["person_zip"]."<BR>";
+				if ($row["person_state"] != "")   $txt.= mb_convert_kana($row["person_state"],"ka");
+				if ($row["person_city"] != "")    $txt.= mb_convert_kana($row["person_city"],"ka")."<BR>";
+				if ($row["person_street"] != "")  $txt.= mb_convert_kana($row["person_street"],"ka")."<BR>";
+				if ($row["person_build"] != "")   $txt.= mb_convert_kana($row["person_build"],"ka")."<BR>";
+				if ($row["person_tel"] != "") {
+					$txt.= "&emojihome;℡:";
+					$txt.= "<A HREF=\"tel:".$row["person_tel"]."\">".$row["person_tel"]."</A><BR>";
+				}
+				if ($row["person_fax"] != "") {
+					$txt.= "&emojihome;&emojifax;:";
+					$txt.= $row["person_fax"]."<BR>";
+				}
+				$txt.= "<hr size=\"0\">";
+				$txt.= "●その他情報 <A HREF=\"./edit/other.phtml".$serial."&s=".$row["seqno"]."\">&gt;変更</A><BR>";
+
+				if ($row["kind_list"] != "") {
+					$txt.= "分類:";
+					$kinds = preg_split("(,|\t)",$row["kind_list"]);
+
+					$c=0;
+					while (list($key,$val)=each($kinds)) {
+						if ($val!="") {
+							$sql_kind = "SELECT * FROM address_kind WHERE key='".$val."'";
+							$res_kind = pg_query($conn,$sql_kind);
+							$cnt_kind = pg_num_rows($res_kind);
+							if ($cnt_kind>0) {
+								if ($c>0) { $txt.= ","; }
+								$row_kind = pg_fetch_array($res_kind,0);
+								$txt.= mb_convert_kana($row_kind["value"],"k");
+							}
+							$c++;
+						}
+					}
+					$txt.= "<BR>";
+				}
+
+				if ($row["comment"] != "") {
+					$comment = mb_convert_kana($row["comment"],"k");
+					$txt.= "<TEXTAREA NAME=comment ROWS=3>".str_cut($comment,512)."</TEXTAREA>";
+					$txt.= "<BR>";
+				}
+				$txt.= "更新.";
+				$txt.= date("y'm/d",datetime2timestamp($row["updatestamp"]))." ".date("H:i",datetime2timestamp($row["updatestamp"]))."<BR>";
+
+				$txt.= "<hr size=\"0\">";
+				$txt.= "<A HREF=\"./edit/log.phtml".$serial."&s=".$row["seqno"]."\">&gt;ログ表示</A><BR>";
+			}
+		}
+	}
+
+	## フッタ表示
+	include ("../footer.inc.php");
+?>

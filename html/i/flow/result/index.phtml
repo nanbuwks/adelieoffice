@@ -1,0 +1,132 @@
+<?php
+  include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+  include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+  if ($func=="t") {
+    $pagetitle = "ワークフローの承認";
+  } else {
+    $pagetitle = "コメント表示";
+  }
+  include ("../../header.inc.php");
+
+  if ($login) {
+    // データ確認
+    if (empty($s)) {
+      $MES[] = "案件が選択されていません";
+    } else {
+      $sql = "SELECT * FROM workflow WHERE (user_id='$login_id' or flow_ids~*'(^|,)$login_id(,|$)') AND seqno=$s";
+      $res = pg_query($conn,$sql);
+      $cnt = pg_num_rows($res);
+      if ($cnt==0) {
+        $MES[] = "指定された案件は登録されていないか既に削除されています";
+      } else {
+        $row = pg_fetch_array($res,0);
+        $subject = mb_convert_kana($row["subject"],"ak");
+        if ($row["retry_sign"]=="t") {
+          $subject .= "(再)";
+        }
+        $flow_ids = $row["flow_ids"];
+        $flow_ids_arr = preg_split(",",$flow_ids);
+        $flow_ids_cnt = sizeof($flow_ids_arr);
+
+        $sql_res = "SELECT * FROM workflow_ret WHERE refno=$s AND seqno=$r";
+        $res_res = pg_query($conn,$sql_res);
+        $cnt_res = pg_num_rows($res_res);
+        if ($cnt==0 && $func!="t") {
+          $MES[] = "指定された承認結果は登録されていないか既に削除されています";
+        } elseif ($cnt_res>0 && empty($func)) {
+          //データの取得
+          $row_res = pg_fetch_array($res_res,0);
+          $user_id   = $row_res["user_id"];
+          $note      = mb_convert_kana($row_res["note"],"ak","EUC-JP");
+          $stamp     = $row_res["createstamp"];
+          $result    = $row_res["result_sign"];
+          $recognize = $row_res["recognize_sign"];
+        } elseif ($cnt_res==0 && $func=="t") {
+          $row_res = pg_fetch_array($res_res,0);
+          //更新時処理
+        } else {
+          $MES[] = "正しくない操作です";
+        }
+      }
+    }
+
+    if (sizeof($MES) > 0) {
+      // エラーメッセージ出力
+      $txt.= "<FONT color=#FF0000>";
+      while (list($key,$val)=each($MES)) {
+        $txt.= $val."<br>";
+      }
+      $txt.= "</FONT>";
+    } else {
+      // 正常時
+      if (!empty($func) && ($func=="t")) {
+        // 更新時
+        $txt.= "件名:".$subject."<BR>";
+        $txt.= "コメント:<BR>";
+        $txt.= "<FORM ACTION=\"./post.phtml\" METHOD=POST>";
+        $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+        $txt.= "<INPUT TYPE=HIDDEN NAME=\"p\" VALUE=\"$p\">";
+        $txt.= "<INPUT TYPE=HIDDEN NAME=\"type\" VALUE=\"$type\">";
+        $txt.= "<INPUT TYPE=HIDDEN NAME=\"s\" VALUE=\"$s\">";
+        $txt.= "<INPUT TYPE=HIDDEN NAME=\"r\" VALUE=\"$r\">";
+        $txt.= "<TEXTAREA NAME=\"note\" ROWS=3>$note</TEXTAREA>";
+        $txt.= "<CENTER>";
+        $txt.= "<INPUT TYPE=SUBMIT NAME=\"ok\" VALUE=\"承認\">";
+        $txt.= "<INPUT TYPE=SUBMIT NAME=\"ng\" VALUE=\"否認\">";
+        $txt.= "</CENTER>";
+        $txt.= "</FORM>\n";
+      } else {
+        // 閲覧時
+        $txt.= "件名:".$subject."<BR>";
+        $txt.= "<hr size="0">";
+        if ($recognize=="t") {
+          $txt.= "<FONT COLOR=#FF0000>承認</FONT>:";
+        } else {
+          $txt.= "否認:";
+        }
+        $sql_user = "SELECT * FROM users WHERE id='".$user_id."'";
+        $res_user = pg_exec($conn,$sql_user);
+        $cnt_user = pg_num_rows($res_user);
+        if ($cnt_user==0) {
+          $txt.= "不明";
+        } else {
+          $row_user = pg_fetch_array($res_user,0);
+          $username = $row_user["name_ryaku"];
+          if (trim($username)=="") $username = $row_user["name"];
+
+          $usermail = $row_user["email_sub"];
+          if (trim($usermail)=="") $usermail = $row_user["email"];
+
+          $txt.= "<A HREF=\"../../mem/detail.phtml?ms=$ms&sn=$sn&id=".$user_id."\">";
+          $txt.= $username;
+          $txt.= "</A>";
+
+          if (trim($row_user["email_sub"])!="") {
+            $txt.= "<A HREF=\"mailto:".$row_user["email_sub"]."\">&emojimobilephone;</A>";
+          }
+          if (trim($row_user["email"])!="") {
+            $txt.= "<A HREF=\"mailto:".$row_user["email"]."\">&emojipc;</A>";
+          }
+        }
+        $txt.= "<BR>\n";
+
+        $txt.= "<hr size="0">";
+        if (empty($note) || trim($note)=="") {
+          $txt.= "(コメント未入力)";
+        } else {
+          $txt.= $note;
+        }
+        $txt.= "<DIV ALIGN=RIGHT>";
+        $txt.= date("n/j",datetime2timestamp($stamp));
+        $txt.= "(";
+        $txt.= $wname[date("w",datetime2timestamp($stamp))];
+        $txt.= ")";
+        $txt.= date("H:i",datetime2timestamp($stamp));
+        $txt.= "</DIV>";
+      }
+    }
+  }
+
+	include ("../../footer.inc.php");
+?>

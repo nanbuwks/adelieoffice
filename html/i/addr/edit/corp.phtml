@@ -1,0 +1,184 @@
+<?php
+	include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+	include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+	// header表示
+	$pagetitle = "住所録 その他情報";
+	include ("../../header.inc.php");
+
+	// エラーチェック
+	if ($login == false) {
+		$MES[] = "先に、ログインしてください ⇒ <A HREF=\"/i/\">ログインページへ</A>";
+	} else {
+		if (trim($login_id) == "") {
+			$MES[] = "ユーザーIDが正しくありません";
+		} else {
+			$sql = "select * from users where id='".$login_id."'";
+			$txt.= "<!--";
+			$res = pg_query($conn, $sql);
+			if (pg_num_rows($res) < 1) {
+				$MES[] = "ユーザーIDが正しくありません".$sql;
+			} else {
+				$row = pg_fetch_array($res,0);
+			}
+			$txt.= "-->";
+		}
+	}
+
+	if (sizeof($MES)==0 && $s != "") {
+		$sql = "SELECT * FROM address WHERE seqno=$s";
+		$res = pg_query($conn,$sql);
+		if (pg_num_rows($res)==0) {
+			$MES[] = "指定された情報は既に削除されています";
+		} else {
+			$row = pg_fetch_array($res,0);
+
+			$corp_name_org   = $row["corp_name"];
+			$corp_name       = mb_convert_kana($corp_name_org,"k");
+			$corp_kana_org   = $row["corp_kana"];
+			$corp_kana       = mb_convert_kana($corp_kana_org,"k");
+			$corp_email      = $row["corp_email"];
+			$corp_url        = $row["corp_url"];
+			$corp_zip        = $row["corp_zip"];
+			$corp_state      = $row["corp_state"];
+			$corp_city       = mb_convert_kana($row["corp_city"],"k");
+			$corp_street     = mb_convert_kana($row["corp_street"],"k");
+			$corp_build      = mb_convert_kana($row["corp_build"],"k");
+			$corp_tel        = $row["corp_tel"];
+			$corp_fax        = $row["corp_fax"];
+
+			$person_name_org = $row["person_name"];
+			$person_name     = mb_convert_kana($person_name_org,"k");
+			$person_kana     = mb_convert_kana($row["person_kana"],"k");
+			$person_sex      = $row["person_sex"];
+			$person_depa     = mb_convert_kana($row["person_depa"],"k");
+			$person_post     = mb_convert_kana($row["person_post"],"k");
+			$person_dialin   = $row["person_dialin"];
+			$person_email    = $row["person_email"];
+			$person_email2   = $row["person_email2"];
+			$person_birthday = $row["person_birthday"];
+			$person_handy    = $row["person_handy"];
+			$person_zip      = $row["person_zip"];
+			$person_state    = $row["person_state"];
+			$person_city     = mb_convert_kana($row["person_city"],"k");
+			$person_street   = mb_convert_kana($row["person_street"],"k");
+			$person_build    = mb_convert_kana($row["person_build"],"k");
+			$person_tel      = $row["person_tel"];
+			$person_fax      = $row["person_fax"];
+
+			$kind_list       = $row["kind_list"];
+			$comment         = mb_convert_kana($row["comment"],"k");
+
+			$create_user_id  = $row["create_user_id"];
+			$createstamp     = $row["createstamp"];
+			$updatestamp     = $row["updatestamp"];
+		}
+	}
+
+	if (sizeof($MES)>0) {
+		$txt.= "<BR>";
+		$txt.= "<CENTER><DIV ALIGN=CENTER><FONT COLOR=#FF0000><B>";
+		// エラーメッセージ出力
+		while (list($key,$val)=each($MES)) {
+			$txt.= $val."<BR>";
+		}
+		$txt.= "</FONT></DIV></CENTER>";
+
+		$txt.= "<FORM ACTION=\"../\" METHOD=\"POST\">";
+		$txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=\"$ms\">";
+		$txt.= "<INPUT TYPE=HIDDEN NAME=s VALUE=\"$s\">";
+		$txt.= "<INPUT TYPE=SUBMIT VALUE=戻る>";
+		$txt.= "</FORM>";
+	} else {
+		## 正常処理
+		$txt.= "<FORM ACTION=\"./upd_corp.phtml\" METHOD=\"POST\">";
+		$txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=\"$ms\">";
+		$txt.= "<INPUT TYPE=HIDDEN NAME=s VALUE=\"$s\">";
+		$txt.= "会社名・屋号(漢字)<BR>";
+		$txt.= "<INPUT TYPE=TEXT NAME=\"corp_name\" MAXLENGTH=64 VALUE=\"$corp_name\" ".inputmode("hiragana").">";
+		$txt.= "<BR>";
+
+		$txt.= "会社名・屋号(カナヨミ)<BR>";
+		$txt.= "<INPUT TYPE=TEXT NAME=\"corp_kana\" MAXLENGTH=64 VALUE=\"$corp_kana\" ".inputmode("katakana").">";
+		$txt.= "<BR>";
+
+		if ($person_depa != "" || $person_post != "") {
+			$txt.= "所属・役職<BR>";
+			$txt.= "<FONT COLOR=#666666>";
+			if ($person_depa != "") {
+				$txt.= "&nbsp;".$person_depa."<BR>";
+			}
+			if ($person_post != "") {
+				$txt.= "&nbsp;".$person_post."<BR>";
+			}
+			$txt.= "</FONT>";
+		}
+		$txt.= "担当者<BR>";
+		$txt.= "<FONT COLOR=#666666>";
+		$txt.= "&nbsp;".$person_name;
+		if ($person_kana != "") {
+			$txt.= "(".$person_kana.")";
+		}
+		$txt.= "<BR>";
+		$txt.= "</FONT>";
+		if ($corp_name_org != "") {
+			$sql_alias = "SELECT * FROM address";
+			$sql_alias.= " WHERE (corp_name='".$corp_name_org."' OR corp_kana='".$corp_kana_org."')";
+			$sql_alias.= " AND person_name!='".$person_name_org."'";
+			$sql_alias.= " ORDER BY person_kana,seqno";
+			$res_alias = pg_query($conn,$sql_alias);
+			$cnt_alias = pg_num_rows($res_alias);
+			if ($cnt_alias>0) {
+				$txt.= "他の登録者<BR>";
+				for ($i=0;$i<$cnt_alias;$i++) {
+					$row_alias = pg_fetch_array($res_alias,$i);
+					$txt.= "&nbsp;<A HREF=\"../view.phtml$serial&seqno=".$row_alias["seqno"]."\">";
+					$txt.= $row_alias["person_name"];
+					$txt.= "</A><BR>";
+				}
+			}
+		}
+
+		$txt.= "郵便番号<BR>";
+		$txt.= "<INPUT TYPE=TEXT NAME=\"corp_zip\" MAXLENGTH=64 VALUE=\"$corp_zip\" ".inputmode("numeric").">";
+		$txt.= "<BR>";
+
+		$txt.= "都道府県<BR>";
+		$txt.= "<INPUT TYPE=TEXT NAME=\"corp_state\" MAXLENGTH=64 VALUE=\"$corp_state\" ".inputmode("hiragana").">";
+		$txt.= "<BR>";
+
+		$txt.= "市区郡<BR>";
+		$txt.= "<INPUT TYPE=TEXT NAME=\"corp_city\" MAXLENGTH=64 VALUE=\"$corp_city\" ".inputmode("hiragana").">";
+		$txt.= "<BR>";
+
+		$txt.= "町村・番地<BR>";
+		$txt.= "<INPUT TYPE=TEXT NAME=\"corp_street\" MAXLENGTH=64 VALUE=\"$corp_street\" ".inputmode("hiragana").">";
+		$txt.= "<BR>";
+
+		$txt.= "ビル・マンション名<BR>";
+		$txt.= "<INPUT TYPE=TEXT NAME=\"corp_build\" MAXLENGTH=64 VALUE=\"$corp_build\" ".inputmode("hiragana").">";
+		$txt.= "<BR>";
+
+		$txt.= "TEL<BR>";
+		$txt.= "<INPUT TYPE=TEXT NAME=\"corp_tel\" MAXLENGTH=64 VALUE=\"$corp_tel\" ".inputmode("numeric").">";
+		$txt.= "<BR>";
+
+		$txt.= "FAX<BR>";
+		$txt.= "<INPUT TYPE=TEXT NAME=\"corp_fax\" MAXLENGTH=64 VALUE=\"$corp_fax\" ".inputmode("numeric").">";
+		$txt.= "<BR>";
+
+		$txt.= "ホームページ<BR>";
+		$txt.= "<INPUT TYPE=TEXT NAME=\"corp_url\" MAXLENGTH=64 VALUE=\"$corp_url\" ".inputmode("alphabet").">";
+		$txt.= "<BR>";
+
+		$txt.= "代表EMAIL<BR>";
+		$txt.= "<INPUT TYPE=TEXT NAME=\"corp_email\" MAXLENGTH=64 VALUE=\"$corp_email\" ".inputmode("alphabet").">";
+		$txt.= "<BR>";
+
+		$txt.= "<BR>";
+		$txt.= "<DIV ALIGN=CENTER><INPUT TYPE=SUBMIT VALUE=\"更新\"></DIV>";
+		$txt.= "</FORM><BR>";
+	}
+
+	include ("../../footer.inc.php");
+?>

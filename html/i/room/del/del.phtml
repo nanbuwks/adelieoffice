@@ -1,0 +1,73 @@
+<?php
+  include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+  include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+  include ("../../header.inc.php");
+
+  // エラー判定
+  if((!isset($PHP_AUTH_USER) or ($PHP_AUTH_USER=="")) and ($ms =="")) {
+    $notlogin = true;
+    $MES[] = "先に、ログインしてください ⇒ <A HREF=\"/i/\">ログインページへ</A>";
+  } else {
+    if (isset($PHP_AUTH_USER) and ($PHP_AUTH_USER!="")) {
+      $login_id = $PHP_AUTH_USER;
+    } else {
+      $sql = "SELECT * FROM users WHERE onetime_passwd='".$sn."'";
+      $res = pg_query($conn,$sql);
+
+      if (pg_num_rows($res)>0) {
+        $row = pg_fetch_array($res,0);
+
+        // 変数展開
+        $login_id    = $row["id"];
+      } else {
+        $notlogin = true;
+        $MES[] = "先に、ログインしてください ⇒ <A HREF=\"/i/\">ログインページへ</A>";
+      }
+    }
+  }
+
+  if (sizeof($MES)==0) {
+    // 削除処理
+    $sql = "SELECT * FROM rooms_reserve WHERE seqno=$seqno";
+    $res = pg_query($conn,$sql);
+    if(pg_num_rows($res)==0){
+      $MES[] = "指定情報削除済み";
+    } else {
+      $sql = "DELETE FROM rooms_reserve WHERE seqno=$seqno";
+      $res = pg_query($conn,$sql);
+      if($res==false){
+        $MES[] = "削除に失敗";
+      }
+    }
+  }
+
+  if (sizeof($MES)>0) {
+    // エラー時
+    $txt.= "<CENTER>";
+    $txt.= "<FONT COLOR=#FF0000>";
+    while (list($key,$val)=each($MES)) {
+      $txt.= mb_convert_kana($val,"ak","EUC-JP")."<BR>";
+    }
+    $txt.= "</FONT><BR>";
+    $txt.= "</CENTER>";
+  } else {
+    // 正常時
+    if ($p=="daily") {
+      $txt.= "<FORM NAME=\"add\" ACTION=\"../daily.phtml\" METHOD=POST>";
+    } else {
+      $txt.= "<FORM NAME=\"add\" ACTION=\"../\" METHOD=POST>";
+    }
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"ms\" VALUE=\"$ms\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"rid\" VALUE=\"$rid\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"y\" VALUE=\"$y\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"m\" VALUE=\"$m\">";
+    $txt.= "<INPUT TYPE=HIDDEN NAME=\"d\" VALUE=\"$d\">";
+    $txt.= "<DIV ALIGN=CENTER><BR>";
+    $txt.= "&emojibuild;削除完了<BR><BR>";
+    $txt.= "<INPUT TYPE=SUBMIT VALUE=\"戻る\">";
+    $txt.= "</DIV>";
+    $txt.= "</FORM><BR>";
+  }
+
+  include "../../footer.inc.php";
+?>

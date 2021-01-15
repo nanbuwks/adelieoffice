@@ -1,0 +1,191 @@
+<?php
+  include "../../config.inc.php"; include "../../lib.inc.php";
+
+  $linktext  = "<A HREF=\"../../\"CLASS=\"BAR\">トップページ</A> &gt; ";
+  $linktext .= "<A HREF=\"../\" CLASS=\"BAR\">Webフォルダ</A> &gt; ";
+  $linktext .= "<FONT COLOR=#FFFF00>フォルダの名称変更</FONT> ";
+
+  include "../../login_check.inc.php";
+
+  if ($login && sizeof($MES)==0) {
+	  // 前処理
+	  $folder = trim($_POST["folder"]);
+	  $folder = textsafe(trim($folder));
+	  $folder = mb_convert_kana($folder,"aKV","EUC-JP"); // 半角カタカナ ⇒ 全角カタカナ
+
+	  $oldfolder = trim($_POST["oldfolder"]);
+	  $oldfolder = textsafe(trim($oldfolder));
+	  $oldfolder = mb_convert_kana($oldfolder,"aKV","EUC-JP"); // 半角カタカナ ⇒ 全角カタカナ
+
+	  $comment = trim($_POST["comment"]);
+	  $comment = textsafe(trim($comment));
+	  $comment = mb_convert_kana($comment,"aKV","EUC-JP"); // 半角カタカナ ⇒ 全角カタカナ
+
+	  // 変数の処理
+	  $parentpath = stripslashes(trim($_POST["parentpath"]));
+
+	  // エラーチェック
+    if ($oldfolder=="") {
+      $DMES[] = "変更前のフォルダ名が指定されていません";
+    } elseif ($folder=="") {
+      $DMES[] = "作成フォルダ名が入力されていません";
+    } else {
+      if(strlen($folder)>40) { // 最大40文字
+        $DMES[] = "作成フォルダ名が長すぎます";
+      } else {
+        if ($folder=="trash") {
+          $DMES[] = "指定されたフォルダ名は使用できません";
+        } else {
+          if ($folder=="/" or $folder=="\\") {
+            $DMES[] = "フォルダ名に使用できない文字が入っています";
+          } else {
+            if ($folder=="." or $folder=="..") {
+              $DMES[] = "フォルダ名に使用できない文字が入っています";
+            } else {
+              if (preg_match("\/",$folder) or preg_match("\.",$folder)) {
+                $DMES[] = "フォルダ名に使用できない文字が含まれています";
+              } else {
+                if (strpos($folder," ")>0 || strpos($folder,"　")>0) {
+                  $DMES[] = "フォルダ名に空白スペースを含むことはできません";
+                } else {
+                  $removefolder = $folderpath.$parentpath."/".$oldfolder;
+                  $makefolder   = $folderpath.$parentpath."/".$folder;
+                  if (!file_exists($removefolder)) {
+                    $DMES[] = "変更前のフォルダが既に削除されています";
+                  } else {
+                    if (file_exists($makefolder)) {
+#                      $DMES[] = "同名のファイルまたはフォルダが既に存在しています";
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (strlen($comment)>400) {
+      $DMES[] = "コメントが長すぎます(全角200文字まで)";
+    }
+
+    if (sizeof($DMES)==0) {
+      if ($folder != sjis2euc(euc2sjis($folder))) {
+        $DMES[] = "フォルダ名に利用できない漢字が使用されています";
+      }
+    }
+
+	  // DBへ書き込み
+	  if (sizeof($DMES)==0) {
+	    // 既存レコードチェック
+	    $makefolder_db = "";
+	    if (substr($parentpath,0,1) != "/") $makefolder_db .= "/";
+	    $makefolder_db .= $parentpath;
+	    if (substr($makefolder_db,-1,1) != "/") $makefolder_db .= "/";
+	    $makefolder_db .= str_replace("'","’",$folder);
+
+	    $removefolder_db = "";
+	    if (substr($parentpath,0,1) != "/") $removefolder_db .= "/";
+	    $removefolder_db .= $parentpath;
+	    if (substr($removefolder_db,-1,1) != "/") $removefolder_db .= "/";
+	    $removefolder_db .= str_replace("'","’",$oldfolder);
+
+	    $comment_db = db_textsafe($comment);
+
+	    if (!empty($seqno) && is_numeric($seqno)) {
+	      $sql = "SELECT * FROM folders WHERE seqno=".$seqno;
+	    } else {
+	      $sql = "SELECT * FROM folders WHERE path='".db_textsafe($makefolder_db)."'";
+	    }
+	    $res = pg_query($conn, $sql);
+	    $cnt = pg_num_rows($res);
+	    if ($cnt == 0) { // 新規
+	      $sql = "SELECT * FROM folders ORDER BY seqno desc;";
+	      $res = pg_query($conn, $sql);
+	      $cnt = pg_num_rows($res);
+
+	      if ($cnt==0) {
+	        $seqno = 1;
+	      } else {
+	        $row = pg_fetch_array($res, 0);
+	        $seqno = $row["seqno"] + 1;
+	      }
+
+	      $sql  = "INSERT INTO folders (seqno,user_id,path,comment,createstamp,updatestamp)";
+	      $sql .= " VALUES (";
+	      $sql .= $seqno.",";
+	      $sql .= "'".$login_id."',";
+	      $sql .= "'".$makefolder_db."',";
+	      $sql .= "'".$comment_db."',";
+	      $sql .= "'now',";
+	      $sql .= "'now'";
+	      $sql .= ")";
+	      $res  = pg_query($conn,$sql);
+	      if ($res==false) {
+	        $DMES[] = "フォルダ情報の登録に失敗しました";
+	      }
+	      $folderno = $seqno;
+	    } else {
+	      // 後でここに権限チェックをつける
+	      $row = pg_fetch_array($res, 0);
+	      $seqno = $row["seqno"];
+
+	      $sql  = "UPDATE folders SET ";
+	      $sql .= "path = '".$makefolder_db."',";
+	      $sql .= "comment = '".$comment_db."',";
+	      $sql .= "updatestamp = 'now' ";
+	      $sql .= "WHERE seqno=".$seqno."";
+	      $res  = pg_query($conn,$sql);
+	      $folderno = $seqno;
+	    }
+	  }
+
+	  if (sizeof($DMES)==0) {
+	    // 下層のフォルダ情報の変更
+	    $sql = "SELECT * FROM folders WHERE path ~* '^".db_textsafe($removefolder_db)."\/'";
+	    $res = pg_query($conn,$sql);
+	    $cnt = pg_num_rows($res);
+	    if ($cnt>0) {
+	      for ($i=0;$i<$cnt;$i++) {
+	        $row = pg_fetch_array($res,$i);
+	        if (file_exists($folderpath.$row["path"]) && is_dir($folderpath.$row["path"])) {
+	          $oldfolder_db = $row["path"];
+	          $newfolder_db = preg_replace("/^".preg_quote($removefolder_db,"/")."/i",$makefolder_db,$oldfolder_db);
+	          $sql_upd = "UPDATE folders SET path='".$newfolder_db."' WHERE path='".$oldfolder_db."'";
+	          $res_upd = pg_query($conn,$sql_upd);
+	        } else {
+	          $sql_del = "DELETE FROM folders WHERE seqno=".$row["seqno"];
+	          $res_del = pg_query($conn,$sql_del);
+	        }
+	      }
+	    }
+
+	    // フォルダ作成
+	    rename ($removefolder,$makefolder);
+	    if (!file_exists($makefolder)) {
+	      $DMES[] = "フォルダの名前変更に失敗したか、変更元のフォルダが削除されています";
+	    }
+	  }
+
+	  if (sizeof($DMES)==0) {
+	    // 正常終了
+			$returl = "../";
+			Header("Location: ".$returl);
+	  } else {
+	    // エラー時
+		  include "../../header.inc.php";
+
+	    $pagetext .= "<BR><CENTER>\n";
+	    $pagetext .= "<FONT COLOR=#FF0000>\n";
+	    while (list($key,$val)=each($DMES)) {
+	      $pagetext .= $val."<BR>\n";
+	    }
+	    $pagetext .= "</FONT>\n";
+	    $pagetext .= "<FORM><INPUT TYPE=BUTTON VALUE=\"戻る\" ONCLICK=\"history.back()\"></FORM>\n";
+	    $pagetext .= "</CENTER>";
+
+		  include "../../detail.inc.php";
+		  include "../../footer.inc.php";
+	  }
+	}
+?>

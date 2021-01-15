@@ -1,0 +1,205 @@
+<?php
+include "../../config.inc.php"; include "../../lib.inc.php";
+
+$linktext  = "<A HREF=\"../../\" CLASS=\"BAR\">トップページ</A> &gt; ";
+$linktext .= "<A HREF=\"../\" CLASS=\"BAR\">Webフォルダ</A> &gt; ";
+$linktext .= "<FONT COLOR=#FFFF00>ファイルの移動</FONT> ";
+
+// ヘッダー出力
+include "../../login_check.inc.php";
+
+if ($login && sizeof($MES)==0) {
+	// パラメーターセット
+	$newpath = trim(urldecode($_REQUEST["path"]));
+	$oldpath = trim(urldecode($_REQUEST["oldpath"]));
+	$name    = trim(urldecode($_REQUEST["name"]));
+	
+	// エラーチェック
+	if ($oldpath=="") {
+		$DMES[] = "フォルダが正しくありません";
+	} elseif (!file_exists($folderpath.$oldpath)) {
+		$DMES[] = "フォルダが既に削除されています";
+	}
+	
+	if ($newpath=="") {
+		$DMES[] = "フォルダが選択されていません";
+	} elseif (!file_exists($folderpath.$newpath)) {
+		$DMES[] = "フォルダが既に削除されています";
+	}
+	
+	if ($name=="") {
+		$DMES[] = "ファイル名が正しくないか既に削除されています";
+	} else {
+		if (!file_exists($folderpath.$oldpath."/".$name)) {
+			$DMES[] = "ファイルが見つからないか既に削除されています。";
+		} elseif ($file != sjis2euc(euc2sjis($file))) {
+			$DMES[] = "ファイル名に利用できない文字が使用されています";
+		} else {
+			if (file_exists($folderpath.$newpath."/".$name)) {
+				$DMES[] = "同名のファイルが既に存在しています。";
+			}
+		}
+	}
+	
+	// DBへ書き込み
+	if (sizeof($DMES)==0) {
+		// 既存レコードチェック(旧ファイル名で)
+		$sql = "SELECT * FROM files WHERE path='".db_textsafe($oldpath)."' AND filename='".db_textsafe($name)."'";
+		$res = pg_query($conn, $sql);
+		$cnt = pg_num_rows($res);
+		if ($cnt > 0) {
+			$db_update = true;
+		} else {
+			// 既存レコードチェック(新ファイル名で)
+			$sql = "SELECT * FROM files WHERE path='".db_textsafe($newpath)."' AND filename='".db_textsafe($name)."'";
+			$res = pg_query($conn, $sql);
+			$cnt = pg_num_rows($res);
+			if ($cnt > 0) {
+				$db_update = true;
+			} else {
+				$db_update = false;
+			}
+		}
+		
+		if (!$db_update) { // 新規
+		$seqno = get_last("files","seqno","",0)+1;
+		
+		$sql  = "INSERT INTO files (seqno,user_id,path,filename,createstamp,updatestamp)";
+		$sql .= " VALUES (";
+		$sql .= $seqno.",";
+		$sql .= "'".$login_id."',";
+		$sql .= "'".$newpath."',";
+		if (substr($name,0,1)!=".") {
+			$sql .= "'".db_textsafe($name)."',";
+		} else {
+			$sql .= "'".db_textsafe(substr($name,1))."',";
+		}
+		$sql .= "'now',";
+		$sql .= "'now'";
+		$sql .= ")";
+		$res = pg_query($conn,$sql);
+		if ($res != false) {
+			$cnt = pg_affected_rows($res);
+		} else {
+			$cnt = 0;
+		}
+		if ($cnt==0) $DMES[] = "ファイル情報の登録に失敗しました";
+		
+		} else {
+			$row = pg_fetch_array($res, 0);
+			$seqno = $row["seqno"];
+			
+			// ここに移動先の権限チェックをつけたほうがいいかも
+			$sql  = "UPDATE files SET ";
+			#$sql .= "user_id = '".$login_id."',";
+			$sql .= "path = '".$newpath."',";
+			if (substr($name,0,1)!=".") {
+				$sql .= "filename = '".db_textsafe($name)."',";
+			} else {
+				$sql .= "filename = '".db_textsafe(substr($name,1))."',";
+			}
+			$sql .= "updatestamp = 'now' ";
+			$sql .= "WHERE seqno=".$seqno;
+			$res = pg_query($conn,$sql);
+			if ($res != false) {
+				$cnt = pg_affected_rows($res);
+			} else {
+				$cnt = 0;
+			}
+			if ($cnt==0) $DMES[] = "ファイル情報の登録に失敗しました";
+		}
+	}
+	
+	if (sizeof($DMES)==0) {
+		// ファイルのリネーム
+		$oldfilename = $folderpath.$oldpath."/".$name;
+		$newfilename = $folderpath.$newpath."/".$name;
+		rename ($oldfilename,$newfilename);
+		
+		// リネームの確認
+		if (!file_exists($newfilename)) {
+			$DMES[] = "ファイル名の変更に失敗しました。";
+		}
+		
+		if (sizeof($DMES)==0) {
+			// フォルダ情報の確認
+			$sql = "SELECT * FROM folders WHERE path='".db_textsafe($oldpath)."'";
+			$res = pg_query($conn, $sql);
+			$cnt = pg_num_rows($res);
+			if ($cnt>0) {
+				$row = pg_fetch_array($res, 0);
+				$oldfolderno = $row["seqno"];
+				if (strlen($oldfolderno)<6) $oldfolderno = str_repeat("0",6-strlen($oldfolderno)).$oldfolderno;
+			} else {
+				// フォルダ情報が無いときはつくる
+				$seqno = get_last("folders","seqno","",0)+1;
+				
+				$sql  = "INSERT INTO folders (seqno,user_id,path,createstamp,updatestamp) VALUES (";
+				$sql .= $seqno.",";
+				$sql .= "'".$login_id."',";
+				$sql .= "'".db_textsafe($oldpath)."',";
+				$sql .= "'now',";
+				$sql .= "'now'";
+				$sql .= ")";
+				$res = pg_query($conn,$sql);
+				if ($res != false) {
+					$cnt = pg_affected_rows($res);
+				} else {
+					$cnt = 0;
+				}
+				if ($cnt==0) $DMES[] = "フォルダ情報の登録に失敗しました";
+				$oldfolderno = $seqno;
+			}
+			
+			$sql = "SELECT * FROM folders WHERE path='".db_textsafe($newpath)."'";
+			$res = pg_query($conn, $sql);
+			$cnt = pg_num_rows($res);
+			if ($cnt>0) {
+				$row = pg_fetch_array($res, 0);
+				$newfolderno = $row["seqno"];
+				if (strlen($newfolderno)<6) $newfolderno = str_repeat("0",6-strlen($newfolderno)).$newfolderno;
+			} else {
+				// フォルダ情報が無いときはつくる
+				$seqno = get_last("folders","seqno","",0)+1;
+				
+				$sql  = "INSERT INTO folders (seqno,user_id,path,createstamp,updatestamp) VALUES (";
+				$sql .= $seqno.",";
+				$sql .= "'".$login_id."',";
+				$sql .= "'".db_textsafe($newpath)."',";
+				$sql .= "'now',";
+				$sql .= "'now'";
+				$sql .= ")";
+				$res = pg_query($conn,$sql);
+				if ($res==false) {
+					$DMES[] = "フォルダ情報の登録に失敗しました";
+				}
+				$newfolderno = $seqno;
+			}
+		}
+	}
+	
+	if (sizeof($DMES)==0) {
+		// 正常終了
+		$returl = "../";
+		if ($p=="top") {
+			$returl = "../../";
+		}
+		Header("Location: ".$returl);
+	} else {
+		// エラー時
+		include "../../header.inc.php";
+		
+		$pagetext .= "<BR><CENTER>\n";
+		$pagetext .= "<FONT COLOR=#FF0000>\n";
+		while (list($key,$val)=each($DMES)) {
+			$pagetext .= $val."<BR>\n";
+		}
+		$pagetext .= "</FONT>\n";
+		$pagetext .= "<FORM><INPUT TYPE=BUTTON VALUE=\"戻る\" ONCLICK=\"history.back()\"></FORM>\n";
+		$pagetext .= "</CENTER>";
+		
+		include "../../detail.inc.php";
+		include "../../footer.inc.php";
+	}
+}
+?>

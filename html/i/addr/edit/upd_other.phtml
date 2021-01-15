@@ -1,0 +1,65 @@
+<?php
+	include ("../../../config.inc.php"); include ("../../../lib.inc.php");
+	include ("../../agent.inc.php"); include ("../../emoji.inc.php");
+
+	$pagetitle = "住所録 その他情報の更新";
+	include "../../header.inc.php";
+
+	if ($login) {
+		// 前処理
+		if ($s == "") {
+			$MES[] = "操作方法が正しくありません";
+		} else {
+			if (!empty($comment)) {
+				$comment = textsafe(sjis2euc(remove_emoji($comment)));
+				$comment = mb_convert_kana($comment,"aK","EUC-JP");
+			}
+			$kind_list = "";
+			if (sizeof($kind)>0) {
+				while (list($key,$val)=each($kind)) {
+					if ($kind_list != "") { $kind_list .= ","; }
+					$kind_list .= $val;
+				}
+			}
+
+			// エラーチェック
+			if ($comment != "") {
+				if (strlen($comment)>1000) {
+					$MES[]="コメントが長すぎます。500文字以内(半角1000文字)で指定してください";
+				}
+			}
+		}
+
+		// エラー無しならDB更新
+		if (sizeof($MES)==0) {
+			$sql  = "UPDATE address SET ";
+			$sql .= "kind_list='".$kind_list."',";
+			$sql .= "comment='".$comment."',";
+			$sql .= "updatestamp='now' ";
+			$sql .= "WHERE seqno=".$s;
+
+			$res = pg_query($conn,$sql);
+			if ($res==false) {
+				$MES[] = "更新に失敗しました。";
+			}
+		}
+
+		if (sizeof($MES)>0) {
+			// エラー時
+			$txt.= "<FONT COLOR=#FF0000>";
+			while (list($key,$val)=each($MES)) { $txt.= $val."<BR>"; }
+			$txt.= "</FONT>";
+		} else {
+			// 正常時
+			$txt.= "<FORM NAME=\"add\" ACTION=\"/i/addr/view.phtml\" METHOD=POST>";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=ms VALUE=\"$ms\">";
+			$txt.= "<INPUT TYPE=HIDDEN NAME=seqno VALUE=\"$s\">";
+			$txt.= "<DIV ALIGN=CENTER><BR>";
+			$txt.= "&emojitel;更新完了<BR><BR>";
+			$txt.= "<INPUT TYPE=SUBMIT VALUE=\"戻る\">";
+			$txt.= "</DIV>";
+			$txt.= "</FORM><BR>";
+		}
+	}
+	include ("../../footer.inc.php");
+?>
