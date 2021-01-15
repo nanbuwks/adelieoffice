@@ -1401,8 +1401,8 @@ INSERT INTO "groups" ("seqno","id","name","viewsign","createstamp","updatestamp"
 
 
 --INSERT INTO "admin" ("name","name_kana","email","company","company_kana","url","zip","country","state","city","street","build","area","tel","fax","depa","post","service_name","startdate","logoutsecond","interval","sunday","monday","tuesday","wednesday","thursday","friday","saturday","account","ftpsize","createstamp","updatestamp") VALUES ('サポート係','サポートカカリ','support@adelie.ne.jp','有限会社ペンギンファクトリー','ペンギンファクトリー','http://www.adelie.co.jp/contents/office.phtml','600-8815','','京都府','京都市下京区','中堂寺粟田町93','京都リサーチパーク スタジオ棟','075','325-5590','325-5599','','代表取締役','Adelie Office Ver2.0.1',NULL,10800,15,'t','f','f','f','f','f','t',50,1000,NULL,'2004-04-14 14:12:41.482273+09');
-INSERT INTO "admin" ("name","name_kana","email","company","company_kana","url","zip","country","state","city","street","build","area","tel","fax","depa","post","service_name","startdate","logoutsecond","interval","sunday","monday","tuesday","wednesday","thursday","friday","saturday","account","ftpsize","createstamp","updatestamp") VALUES ('サポート係','サポートカカリ','support@---','---','---','http://---','000-0000','','---','---','---','555','555-5555','000-0000','','----','AdelieOffice Ver0.201',NULL,10800,15,'t','f','f','f','f','f','t',50,1000,NULL,'2004-04-14 14:12:41.482273+09');
---add in 20210114
+INSERT INTO "admin" ("name","name_kana","email","company","company_kana","url","zip","country","state","city","street","build","area","tel","fax","depa","post","service_name","startdate","logoutsecond","interval","sunday","monday","tuesday","wednesday","thursday","friday","saturday","account","ftpsize","createstamp","updatestamp") VALUES ('サポート係','サポートカカリ','support@---','---','---','http://---','000-0000','','---','---','---','---','555','555-5555','000-0000','','----','AdelieOffice Ver0.201',NULL,10800,15,'t','f','f','f','f','f','t',50,1000,NULL,'2004-04-14 14:12:41.482273+09');
+--add on 20210114
 --
 -- Data for TOC Entry ID 192 (OID 891859)
 --

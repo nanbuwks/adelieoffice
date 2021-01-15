@@ -184,7 +184,7 @@
   $border64 = 0;
   $border32 = 0;
 
-  $title_backcolor  = "#005599";
+  $title_backcolor  = "#090727";
   $title_forecolor1 = "#330066"; // 曜日色を使うため無効
   $title_forecolor2 = "#FFFFFF";
   $title_forecolor3 = "#FFFFFF";
