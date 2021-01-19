@@ -199,7 +199,7 @@
 				} else {
 					print "<OPTION VALUE=\"g".$key."\">".$val."</OPTION>\n";
 				}
-				if ($sch_target == "g".$key || preg_match("(^|,)".$key."(,|$)",$entergroup)) {
+				if ($sch_target == "g".$key || preg_match("~(^|,)".$key."(,|$)~",$entergroup)) {
 					for ($i=0;$i<$cnt_entry;$i++) {
 						$row_entry = pg_fetch_array($res_entry,$i);
 						if ($row_entry["user_id"]!=$login_id) {

@@ -173,7 +173,7 @@
       }
     }
 
-    if (sizeof($DMES)==0) {
+    if (sizeof((array)$DMES)==0) {
       // 通常表示
       $pagetext = "";
       $pagetext .= "<SCRIPT LANGUAGE=\"JavaScript\">\n";
@@ -652,10 +652,10 @@
 
       $pagetext .= "<TR><TD>";
       $pagetext .= "<SELECT NAME=\"righthandman_ids_to[]\" SIZE=8 STYLE=\"width:140px\">\n";
-      $righthandman_ids_to = preg_split(",",$righthandman_ids);
+      $righthandman_ids_to = preg_split("~,~",$righthandman_ids);
 
-      if (sizeof($righthandman_ids_to)>0) {
-        for ($i=0;$i<sizeof($righthandman_ids_to);$i++) {
+      if (sizeof((array)$righthandman_ids_to)>0) {
+        for ($i=0;$i<sizeof((array)$righthandman_ids_to);$i++) {
           if ($righthandman_ids_to[$i]!="") {
             $pagetext .= "<OPTION VALUE=\"".$righthandman_ids_to[$i]."\">";
             $pagetext .= get_first("users","name","id='".$righthandman_ids_to[$i]."'","");

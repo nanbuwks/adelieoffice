@@ -306,7 +306,7 @@ return  strtotime(date($dt));
 function date2timestamp($dt) {
 //  2011/06/21 modify by nanbuwks
 //  $wYMD = preg_split("-",$dt);
-  $wYMD = preg_preg_split("/[-\/:\s]/",$dt);
+  $wYMD = preg_split("/[-\/:\s]/",$dt);
 //  if (sizeof($wYMD)==1) {
 //    $wYMD = preg_split("/",$dt);
 //  }
@@ -574,7 +574,7 @@ function str_wiki($str) {
 
 
 					if (trim($coltext)!="") {
-						$arrtext = preg_preg_split("/:/i",$coltext,2);
+						$arrtext = preg_split("/:/i",$coltext,2);
 						if (sizeof($arrtext)==2 && (!preg_match("/^\/\//",$arrtext[1]))) {
 							$s .= "<td BGCOLOR=".$arrtext[0].">";
 							$s .= $arrtext[1];

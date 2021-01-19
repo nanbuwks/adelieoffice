@@ -24,7 +24,7 @@
     if (trim($pagetext)=="") $pagetext = "<FONT COLOR=#FFFFFF>This [content]page is blank</FONT>\n";
     print $pagetext;
 
-    if (sizeof(preg_split("\/",$request_uri))>3) {
+    if (sizeof((array)preg_split("~\/~",$request_uri))>3) {
       print "<BR><DIV ALIGN=RIGHT><A HREF=\"javascript:history.back()\">&lt; 戻る &gt;</A>&nbsp;</DIV><BR>";
     }
 ?>

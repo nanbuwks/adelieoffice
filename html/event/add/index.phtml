@@ -660,10 +660,10 @@ function removeUser(t) {
 			
 			$pagetext .= "<TR>
 <TD VALIGN=TOP><SELECT NAME=\"id_tos[]\" SIZE=8 STYLE=\"width:140px\">\n";
-			$id_tos = preg_split(",",$id_to);
+			$id_tos = preg_split("~,~",$id_to);
 			
-			if (sizeof($id_tos)>0) {
-				for ($i=0;$i<sizeof($id_tos);$i++) {
+			if (sizeof((array)$id_tos)>0) {
+				for ($i=0;$i<sizeof((array)$id_tos);$i++) {
 					if ($id_tos[$i]!="") {
 						$pagetext .= "<OPTION VALUE=\"".$id_tos[$i]."\">";
 						$pagetext .= get_first("users","name","id='".$id_tos[$i]."'","");
