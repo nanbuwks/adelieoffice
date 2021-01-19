@@ -59,7 +59,7 @@
   // ケータイチェック
   $user_agent = getenv("HTTP_USER_AGENT");
   // iモード以外除外
-  if (preg_match("~^DoCoMo\/~",$user_agent) or preg_match("^J\-PHONE\/",$user_agent) or preg_match("/UP\.Browser/",$user_agent)) {
+  if (preg_match("~^DoCoMo\/~",$user_agent) or preg_match("~^J\-PHONE\/~",$user_agent) or preg_match("/UP\.Browser/",$user_agent)) {
     header("Location: ".$access.$domain.$toppath."/i/");
     exit;
   }
@@ -307,7 +307,7 @@
   print "<BODY TEXT=$bodyForeColor LINK=$bodyLinkColor VLINK=$bodyVLinkColor ALINK=$bodyALinkColor BGCOLOR=$bodyBackColor LEFTMARGIN=0 RIGHTMARGIN=0 TOPMARGIN=0 BOTTOMMARGIN=0 MARGINHEIGHT=0 MARGINWIDTH=>\n";
 
   $request_uri2 = preg_replace("/(\?|&)print=(on|off)/","",$request_uri);
-  if (preg_match("\?",$request_uri2)) {
+  if (preg_match("~\?~",$request_uri2)) {
     $printpath = $request_uri2."&print=on";
     $displaypath = $request_uri2."&print=off";
   } else {
@@ -480,7 +480,7 @@
 <INPUT TYPE=SUBMIT VALUE="LOGIN" STYLE="width:100px">
 </TD></TR></FORM></TABLE>
 <?php
-    if (sizeof($headerr)>0) {
+    if (sizeof((array)$headerr)>0) {
       print "<TABLE BORDER=0 CELLPADDING=0 CELLSPACING=0 WIDTH=100%><TR><TD ALIGN=CENTER><FONT COLOR=#FF0000>\n";
       while(list($key,$val)=each($headerr)) print $val."<BR>";
       print "</FONT></TD></TR></TABLE>\n";
