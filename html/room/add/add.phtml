@@ -53,13 +53,13 @@ if ($login && sizeof($MES)==0) {
 		}
 	}
 	
-	if ($ey=="" or $ey==0){
+	if ($_POST["ey"]=="" or $_POST["ey"]==0){
 		$DMES[] = "日付(年)を入力して下さい";
 	}
-	if ($em=="" or $em==0){
+	if ($_POST["em"]=="" or $_POST["em"]==0){
 		$DMES[] = "日付(月)を入力して下さい";
 	}
-	if ($ed=="" or $ed==0){
+	if ($_POST["ed"]=="" or $_POST["ed"]==0){
 		$DMES[] = "日付(日)を入力して下さい";
 	}
 	if (sizeof($DMES)==0) {
@@ -108,18 +108,18 @@ if ($login && sizeof($MES)==0) {
 		}
 	}
 	
-	if ($note=="") {
+	if ($_POST["note"]=="") {
 		$DMES[] = "内容が入力されていません";
 	} elseif (strlen($note)>8192) {
 		$DMES[] = "内容が長すぎます(8192文字以内)";
 		$note = mb_strcut($note,0,8192);
 	}
 	
-	if ($member_count=="") {
+	if ($_POST["member_count"]=="") {
 		$DMES[] = "利用人数が入力されていません";
-	} elseif (!is_numeric($member_count)) {
+	} elseif (!is_numeric($_POST["member_count"])) {
 		$DMES[] = "利用人数は数字で入力してください";
-	} elseif ($member_count<0 || $member_count>9999) {
+	} elseif ($_POST["member_count"]<0 || $_POST["member_count"]>9999) {
 		$DMES[] = "利用人数が正しくありません";
 	}
 	

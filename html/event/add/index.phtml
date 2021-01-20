@@ -26,7 +26,7 @@ $user_count = $row["allrecords"];
 
 if ($login) {
 	// 登録ページからの戻り判定
-	if (preg_match("event\/add\/add\.phtml",$referer)){
+	if (preg_match("~event\/add\/add\.phtml~",$referer)){
 		if (!empty($s)) {
 			$updatestamp = get_first("events","updatestamp","seqno=$s",NULL);
 		}
@@ -206,7 +206,7 @@ if ($login) {
 		}
 	}
 	
-	if (sizeof($DMES)>0) {
+	if (sizeof((array)$DMES)>0) {
 		// エラーメッセージ出力
 		$pagetext .= "<TABLE WIDTH=100% HEIGHT=350 BORDER=0><TR><TD ALIGN=CENTER VALIGN=TOP>\n";
 		$pagetext .= "<FORM>\n";

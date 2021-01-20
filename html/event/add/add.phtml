@@ -516,7 +516,7 @@ if ($login && sizeof($MES)==0) {
 		print "<INPUT TYPE=SUBMIT VALUE=\"戻る\"><BR>\n";
 		print "</FORM>\n";
 		
-		if (sizeof($WMES)>0) {
+		if (sizeof((array)$WMES)>0) {
 			// ワーニングメッセージ出力
 			print "<FORM ACTION=\"./add.phtml\" METHOD=\"POST\">\n";
 			if ($tit == "編集") {
