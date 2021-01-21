@@ -239,7 +239,7 @@ function selectmonth(f) {
           $res = pg_query($conn,$sql);
           $cnt = pg_num_rows($res);
 
-          $column="";
+          $column=(array)"";
           for ($j=0;$j<$cnt;$j++) {
             $row = pg_fetch_array($res,$j);
             // 時刻値計算

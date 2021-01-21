@@ -206,7 +206,7 @@ if ($login) {
 		}
 	}
 	
-	if (sizeof((array)$DMES)>0) {
+	if (sizeof($DMES)>0) {
 		// エラーメッセージ出力
 		$pagetext .= "<TABLE WIDTH=100% HEIGHT=350 BORDER=0><TR><TD ALIGN=CENTER VALIGN=TOP>\n";
 		$pagetext .= "<FORM>\n";
@@ -662,8 +662,8 @@ function removeUser(t) {
 <TD VALIGN=TOP><SELECT NAME=\"id_tos[]\" SIZE=8 STYLE=\"width:140px\">\n";
 			$id_tos = preg_split("~,~",$id_to);
 			
-			if (sizeof((array)$id_tos)>0) {
-				for ($i=0;$i<sizeof((array)$id_tos);$i++) {
+			if (sizeof($id_tos)>0) {
+				for ($i=0;$i<sizeof($id_tos);$i++) {
 					if ($id_tos[$i]!="") {
 						$pagetext .= "<OPTION VALUE=\"".$id_tos[$i]."\">";
 						$pagetext .= get_first("users","name","id='".$id_tos[$i]."'","");

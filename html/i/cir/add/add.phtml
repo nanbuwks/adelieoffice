@@ -125,8 +125,8 @@
 							} else {
 								$maxlen = 10000;
 							}
-							for ($l=0;$l<mbstrlen($mailtext);$l++) {
-								$checktext = mbsubstr($mailtext,$l,1);
+							for ($l=0;$l<mb_strlen($mailtext);$l++) {
+								$checktext = mb_substr($mailtext,$l,1);
 								if ($checktext != "\r") {
 									if (strlen($checktext)==1) {
 										 $strlen = $strlen+1.1;

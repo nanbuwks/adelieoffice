@@ -228,8 +228,8 @@ if ($login && sizeof($MES)==0) {
 								} else {
 									$maxlen = 10000;
 								}
-								for ($l=0;$l<mbstrlen($w_mailtext);$l++) {
-									$checktext = mbsubstr($w_mailtext,$l,1);
+								for ($l=0;$l<mb_strlen($w_mailtext);$l++) {
+									$checktext = mb_substr($w_mailtext,$l,1);
 									if ($checktext != "\r") {
 										if (strlen($checktext)==1) {
 											$strlen = $strlen+1;

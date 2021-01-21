@@ -376,8 +376,8 @@ function selectmonth(f) {
               $len = floor(($hour_to+1-date("H",$t_f))*$hourchar); // 表示可能文字長調整
 
               $outtext = "";
-              for ($l=0;$l<mbstrlen($row["note"]);$l++) {
-                $outtext .= mbsubstr($row["note"],$l,1);
+              for ($l=0;$l<mb_strlen($row["note"]);$l++) {
+                $outtext .= mb_substr($row["note"],$l,1);
                 if (strlen($outtext)>=$len-1) {
                   break;
                 }

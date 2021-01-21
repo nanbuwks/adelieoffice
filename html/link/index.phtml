@@ -54,7 +54,7 @@
       if ($colorflag != true) { $bgcolor = $bg_dark;  $colorflag = true;
       } else { $bgcolor = $bg_light; $colorflag = false; }
       $path_pos = mbstrrpos($linkpath,"/");
-      $path = mbsubstr($linkpath,0,$path_pos+1);
+      $path = mb_substr($linkpath,0,$path_pos+1);
 
       $linkstr = "./?new_path=".urlencode($linkpath."/../");
       $dirtext .= "<TR BGCOLOR=\"$bgcolor\">";

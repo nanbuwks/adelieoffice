@@ -480,7 +480,7 @@
 <INPUT TYPE=SUBMIT VALUE="LOGIN" STYLE="width:100px">
 </TD></TR></FORM></TABLE>
 <?php
-    if (sizeof((array)$headerr)>0) {
+    if (sizeof($headerr)>0) {
       print "<TABLE BORDER=0 CELLPADDING=0 CELLSPACING=0 WIDTH=100%><TR><TD ALIGN=CENTER><FONT COLOR=#FF0000>\n";
       while(list($key,$val)=each($headerr)) print $val."<BR>";
       print "</FONT></TD></TR></TABLE>\n";

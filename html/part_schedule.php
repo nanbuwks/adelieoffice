@@ -46,7 +46,7 @@ if ($login) {
 		// マイグループの情報獲得
 		if ($topsign=="t") {
 			$mygroups = preg_split("~,~",$mygroup);
-			if (sizeof((array)$mygroups)>0) {
+			if (sizeof($mygroups)>0) {
 				while(list($key,$val)=each($mygroups)) {
 					$find = false;
 					reset($users);

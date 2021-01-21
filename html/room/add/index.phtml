@@ -15,7 +15,7 @@
 
   if ($login && sizeof($MES)==0) {
     //登録ページからの戻り判定
-    if (preg_match("room\/add\/add\.phtml",$referer)){
+    if (preg_match("~room\/add\/add\.phtml~",$referer)){
       $tit = "再入力";
       $id = $room_id;
     } else {

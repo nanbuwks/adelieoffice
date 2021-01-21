@@ -261,8 +261,8 @@ function mbtrim($str) {
 function str_cut($s,$width) {
   $outtext = "";
   if (sizeof($s) > 1 or strlen($s) > $width) {
-    for ($i=0;$i<mbstrlen($s);$i++) {
-      $outtext .= mbsubstr($s,$i,1);
+    for ($i=0;$i<mb_strlen($s);$i++) {
+      $outtext .= mb_substr($s,$i,1);
       if (strlen($outtext)>=$width-2) {
         break;
       }
@@ -275,9 +275,9 @@ function str_cut($s,$width) {
 function str_rcut($s,$width) {
   $outtext = "";
   if (sizeof($s) > 1 or strlen($s) > $width) {
-    $i = mbstrlen($s);
+    $i = mb_strlen($s);
     while($i>0) {
-      $outtext = mbsubstr($s,$i,1).$outtext;
+      $outtext = mb_substr($s,$i,1).$outtext;
       if (strlen($outtext)>$width-2) {
         break;
       }

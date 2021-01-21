@@ -3,6 +3,7 @@ include "../../config.inc.php"; include "../../lib.inc.php";
 
 $linktext  = "<A HREF=\"../../\" CLASS=\"BAR\">トップページ</A> &gt; ";
 $linktext .= "<A HREF=\"../\" CLASS=\"BAR\">施設・設備予約</A> &gt; ";
+
 if (empty($seqno)) {
 	$linktext .= "<FONT COLOR=#FFFF00>予約の登録</FONT>";
 } else {
@@ -10,6 +11,60 @@ if (empty($seqno)) {
 }
 
 include "../../login_check.inc.php";
+
+if(!isset($room_id)){
+$room_id = $_POST["room_id"];
+}
+
+if(!isset($ey)){
+$ey = $_POST["ey"];
+}
+
+if(!isset($em)){
+$em = $_POST["em"];
+}
+
+if(!isset($ed)){
+$ed = $_POST["ed"];
+}
+if(!isset($user_id)){
+$user_id = $_POST["user_id"];
+}
+
+if(!isset($from_hour)){
+$from_hour = $_POST["from_hour"];
+}
+
+if(!isset($to_hour)){
+$to_hour = $_POST["to_hour"];
+}
+
+if(!isset($from_minuts)){
+$from_minuts = $_POST["from_minuts"];
+}
+
+if(!isset($to_minuts)){
+$to_minuts = $_POST["to_minuts"];
+}
+
+if(!isset($login_id)){
+$login_id = $_POST["login_id"];
+}
+
+if(!isset($member_count)){
+$member_count = $_POST["member_count"];
+}
+
+
+if(!isset($note)){
+$note = $_POST["note"];
+}
+
+if(!isset($now)){
+$now = $_POST["now"];
+}
+
+
 
 if ($login && sizeof($MES)==0) {
 	// 前処理
@@ -53,13 +108,13 @@ if ($login && sizeof($MES)==0) {
 		}
 	}
 	
-	if ($_POST["ey"]=="" or $_POST["ey"]==0){
+	if ($ey=="" or $ey==0){
 		$DMES[] = "日付(年)を入力して下さい";
 	}
-	if ($_POST["em"]=="" or $_POST["em"]==0){
+	if ($em=="" or $em==0){
 		$DMES[] = "日付(月)を入力して下さい";
 	}
-	if ($_POST["ed"]=="" or $_POST["ed"]==0){
+	if ($ed=="" or $ed==0){
 		$DMES[] = "日付(日)を入力して下さい";
 	}
 	if (sizeof($DMES)==0) {
