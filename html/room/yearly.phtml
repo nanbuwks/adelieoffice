@@ -295,15 +295,15 @@ function selectyear(f){
             if ($daytype != "") {
               if ($y==$today["year"] and $m==$today["mon"] and $d==$today["mday"]) {
                 // 今日
-#                $daytext = eregi_replace("#","color:#FFFFFF;font-weight:bold",$daytext);
+#                $daytext = preg_replace("#","color:#FFFFFF;font-weight:bold",$daytext);
                 $backcolor = "#AAAAFF";
               } else {
                 // 今日以外
-#                $daytext = eregi_replace("#","color:".$forecolor.";font-weight:bold",$daytext);
+#                $daytext = preg_replace("#","color:".$forecolor.";font-weight:bold",$daytext);
               }
             } else {
               // 今日以外(別の月)
-#              $daytext = eregi_replace("#","color:#999999;font-weight:normal",$daytext);
+#              $daytext = preg_replace("#","color:#999999;font-weight:normal",$daytext);
             }
 
             if (($start_mon == "f" && $col==0) || ($start_mon == "t" && $col==1)) {

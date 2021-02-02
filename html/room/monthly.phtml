@@ -324,13 +324,13 @@ function selectmonth(f){
         // 色設定
         if ($daytype != "") {
           if ($y==$today["year"] and $m==$today["mon"] and $d==$today["mday"]) {
-            $daytext = eregi_replace("#","color:#FFFFFF;font-weight:bold",$daytext);
+            $daytext = preg_replace("~#~","color:#FFFFFF;font-weight:bold",$daytext);
             $backcolor = "#9999FF";
           } else {
-            $daytext = eregi_replace("#","color:".$forecolor.";font-weight:bold",$daytext);
+            $daytext = preg_replace("~#~","color:".$forecolor.";font-weight:bold",$daytext);
           }
         } else {
-          $daytext = eregi_replace("#","color:#999999;font-weight:normal",$daytext);
+          $daytext = preg_replace("~#~","color:#999999;font-weight:normal",$daytext);
         }
 
         // 通常スケジュールの有無判定
