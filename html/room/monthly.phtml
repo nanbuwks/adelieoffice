@@ -5,6 +5,17 @@
 
   // 動作保存用Cookie
   $headertext .= "Set-Cookie: room_move=monthly; path=/;\n";
+
+if(!isset($y)){
+$y = $_GET["y"];
+}
+if(!isset($m)){
+$m = $_GET["m"];
+}
+if(!isset($d)){
+$d = $_GET["d"];
+}
+
   if (!empty($y)) $headertext .= "Set-Cookie: room_y=$y; path=/;\n";
   if (!empty($m)) $headertext .= "Set-Cookie: room_m=$m; path=/;\n";
   if (!empty($d)) $headertext .= "Set-Cookie: room_d=$d; path=/;\n";
